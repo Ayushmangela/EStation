@@ -5,6 +5,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Load properties for Google API Key
+val googleApiProps = java.util.Properties()
+val googleApiPropsFile = project.file("google_api.properties")
+if (googleApiPropsFile.isFile()) {
+    googleApiProps.load(java.io.FileInputStream(googleApiPropsFile))
+}
+
 android {
     namespace = "com.example.testing"
     compileSdk = flutter.compileSdkVersion
@@ -28,6 +35,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Add manifest placeholder for the Google API Key
+        manifestPlaceholders["GOOGLE_API_KEY"] = googleApiProps.getProperty("GOOGLE_API_KEY", "")
     }
 
     buildTypes {
