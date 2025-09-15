@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 // Adjusted import paths for the new structure:
-import '../widgets/dotted_arc_painter.dart'; 
+import '../widgets/dotted_arc_painter.dart';
 import '../../data/models/onboarding_page.dart';
 
 class OnboardingView extends StatefulWidget { // New class name
@@ -16,11 +16,11 @@ class _OnboardingViewState extends State<OnboardingView> { // New state class na
 
   // Assuming OnboardingPage model will be moved to src/data/models/
   // and DottedArcPainter to src/presentation/widgets/
-  final List<OnboardingPage> _pages = [ 
+  final List<OnboardingPage> _pages = [
     OnboardingPage(
       title: "Get your smart life with\nsmart bike",
       description:
-          "The future of transportation is electric, and we\'re here to help you get there.",
+      "The future of transportation is electric, and we\'re here to help you get there.",
       image: "assets/scooty.png", // Asset paths remain the same relative to project root
       color: const Color(0xFFE3F2FD),
       imageWidth: 500,
@@ -29,7 +29,7 @@ class _OnboardingViewState extends State<OnboardingView> { // New state class na
     OnboardingPage(
       title: "Eco-friendly\nTransportation",
       description:
-          "Reduce your carbon footprint while enjoying a smooth and efficient ride.",
+      "Reduce your carbon footprint while enjoying a smooth and efficient ride.",
       image: "assets/car.png",
       color: const Color(0xFFE8F5E8),
       imageWidth: 750,
@@ -38,7 +38,7 @@ class _OnboardingViewState extends State<OnboardingView> { // New state class na
     OnboardingPage(
       title: "Smart Features\nfor Smart Living",
       description:
-          "GPS tracking, battery monitoring, and smart connectivity at your fingertips.",
+      "GPS tracking, battery monitoring, and smart connectivity at your fingertips.",
       image: "assets/charging_station.png",
       color: const Color(0xFFF3E5F5),
       imageWidth: 380,
@@ -71,8 +71,8 @@ class _OnboardingViewState extends State<OnboardingView> { // New state class na
     // Navigation will need to be updated to use App routes if defined in app.dart
     // For now, using named routes as it was.
     Navigator.of(context).pushNamedAndRemoveUntil(
-      '/login', 
-      (route) => false,
+      '/login',
+          (route) => false,
       arguments: {'animate': true},
     );
   }
@@ -106,7 +106,7 @@ class _OnboardingViewState extends State<OnboardingView> { // New state class na
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
                       _pages.length,
-                      (index) => Container(
+                          (index) => Container(
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         width: 8,
                         height: 8,
@@ -184,7 +184,7 @@ class _OnboardingViewState extends State<OnboardingView> { // New state class na
                       left: 0,
                       right: 0,
                       // Assuming DottedArcPainter is correctly imported
-                      child: CustomPaint( 
+                      child: CustomPaint(
                         painter: DottedArcPainter(),
                         size: const Size(double.infinity, 100),
                       ),

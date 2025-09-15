@@ -25,6 +25,7 @@ class MyApp extends StatelessWidget {
         ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
+      // 🚀 Always start with Onboarding first
       initialRoute: '/onboarding',
       routes: {
         '/onboarding': (context) => const OnboardingView(),
@@ -32,7 +33,7 @@ class MyApp extends StatelessWidget {
         '/signup': (context) => const SignupView(),
         '/forgot-password': (context) => const ForgotPasswordView(),
         '/admin-home': (context) => const AdminHomeView(),
-        '/user-home': (context) => const UserHomeView(), // no authController needed here
+        '/user-home': (context) => const UserHomeView(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/onboarding' && settings.arguments != null) {

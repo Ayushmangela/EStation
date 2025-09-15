@@ -73,7 +73,7 @@ class _UserMapViewState extends State<UserMapView> {
   void _animateToCurrentLocation(GoogleMapController controller) {
     if (_currentPosition != null) {
       controller.animateCamera(
-        CameraUpdate.newLatLngZoom(_currentPosition!, 14),
+        CameraUpdate.newLatLngZoom(_currentPosition!, 16),
       );
     }
   }
@@ -85,7 +85,7 @@ class _UserMapViewState extends State<UserMapView> {
         : GoogleMap(
       initialCameraPosition: CameraPosition(
         target: _currentPosition ?? const LatLng(19.0760, 72.8777),
-        zoom: 14,
+        zoom: 20,
       ),
       onMapCreated: (GoogleMapController controller) {
         if (!_controllerCompleter.isCompleted) {

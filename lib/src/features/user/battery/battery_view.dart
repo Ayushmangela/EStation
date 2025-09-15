@@ -5,8 +5,16 @@ class BatteryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('Battery Page', style: TextStyle(fontSize: 24)),
+    // Wrap with a Container to add a background color
+    return Container(
+      color: Colors.yellow,
+      child: const Center(
+        child: Text(
+          'Battery Page',
+          // Change the text color to white to make it visible
+          style: TextStyle(fontSize: 24, color: Colors.white),
+        ),
+      ),
     );
   }
 }

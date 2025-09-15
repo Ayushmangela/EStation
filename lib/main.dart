@@ -1,14 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
-import 'config/supabase_config.dart'; // Import Supabase config
-import 'src/app.dart'; // Import the new MyApp class
+import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'config/supabase_config.dart';
+import 'src/app.dart';
 
-Future<void> main() async { // Make main async
-  WidgetsFlutterBinding.ensureInitialized(); // Ensure Flutter bindings are initialized
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  // DEBUG: Print Supabase config values before initialization
+  // Hide system navigation bar on app start, but allow swipe up to reveal
+  await SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.immersiveSticky,
+  );
+
+  // Set status bar icons to light for visibility
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Colors.black,
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
+
+  // DEBUG: Print Supabase config values
   print('DEBUG main.dart: Supabase URL from config: ${SupabaseConfig.supabaseUrl}');
-  print('DEBUG main.dart: Supabase Anon Key from config (first 10 chars): ${SupabaseConfig.supabaseAnonKey.substring(0, 10)}');
+  print('DEBUG main.dart: Supabase Anon Key (first 10 chars): ${SupabaseConfig.supabaseAnonKey.substring(0, 10)}');
 
   // Initialize Supabase
   try {
@@ -19,14 +33,12 @@ Future<void> main() async { // Make main async
     print('DEBUG main.dart: Supabase initialized successfully.');
   } catch (e) {
     print('DEBUG main.dart: Supabase initialization FAILED: ${e.toString()}');
-    // If initialization fails, you might not want to run the app
-    // or handle it in a way that informs the user.
-    return; 
+    return;
   }
-  
-  runApp(const MyApp()); // Run the MyApp from src/app.dart
+
+  // 🚀 Always launch with Onboarding first
+  runApp(const MyApp());
 }
 
 // Supabase client instance
-// This will eventually be better managed, perhaps injected or accessed via a service locator
 final supabase = Supabase.instance.client;

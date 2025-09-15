@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -6,10 +9,10 @@ plugins {
 }
 
 // Load properties for Google API Key
-val googleApiProps = java.util.Properties()
+val googleApiProps = Properties()
 val googleApiPropsFile = project.file("google_api.properties")
 if (googleApiPropsFile.isFile()) {
-    googleApiProps.load(java.io.FileInputStream(googleApiPropsFile))
+    googleApiProps.load(FileInputStream(googleApiPropsFile))
 }
 
 android {
