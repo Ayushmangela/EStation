@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-// Corrected import paths based on your file structure
+// Corrected import paths
 import '../widgets/dotted_arc_painter.dart';
 import '../../data/models/onboarding_page.dart';
-import '../../features/user/home/user_home_view.dart'; // Import the user home page
+import 'login_view.dart'; // Correct path to LoginView
 
 class OnboardingView extends StatefulWidget {
   const OnboardingView({super.key});
@@ -68,10 +68,9 @@ class _OnboardingViewState extends State<OnboardingView> {
   }
 
   void _finishOnboarding() {
-    // This logic now navigates directly to the UserHomeView and removes the
-    // onboarding screen from the navigation stack, so the user can't go back.
+    // Navigate to LoginView and remove onboarding from back stack
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const UserHomeView()),
+      MaterialPageRoute(builder: (_) => const LoginView()),
     );
   }
 
@@ -99,6 +98,7 @@ class _OnboardingViewState extends State<OnboardingView> {
             child: Container(
               padding: const EdgeInsets.all(24),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

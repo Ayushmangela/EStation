@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class StationCard extends StatelessWidget {
   final String name;
   final String address;
-  final String chargerType;
-  final String capacity;
-  final String status;
   final VoidCallback onViewPressed;
   final VoidCallback onBookPressed;
 
@@ -14,33 +10,78 @@ class StationCard extends StatelessWidget {
     super.key,
     required this.name,
     required this.address,
-    this.chargerType = "AC/DC Charger",
-    this.capacity = "N/A",
-    this.status = "Unknown",
     required this.onViewPressed,
     required this.onBookPressed,
   });
 
+  Widget _buildChargerInfoBox({
+    required IconData icon,
+    required String title,
+    required String capacityInfo,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), // Reduced vertical padding
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 30, color: Colors.black87),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 0), // Reduced space
+                  Text(
+                    capacityInfo,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    Color statusColor = status == "Available" ? Colors.green : Colors.red;
-
     return Container(
-      padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      height: 200.0, // Target height
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), // Reduced top/bottom card padding
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.max,
         children: [
           // Title Row
           Row(
@@ -50,47 +91,52 @@ class StationCard extends StatelessWidget {
                 child: Text(
                   name,
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.favorite_border, color: Colors.grey),
+                iconSize: 28,
                 onPressed: () => debugPrint("Favorite tapped for $name"),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 0), // Reduced space between name and address
           // Address
           Row(
             children: [
-              const Icon(Icons.location_on, size: 16, color: Colors.grey),
-              const SizedBox(width: 4),
+              Icon(Icons.location_on_outlined, size: 16, color: Colors.grey[700]),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   address,
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Info Chips
+          const SizedBox(height: 8), // Reduced space before charger info
+          // Static Charger Info Boxes
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _infoChip(Icons.ev_station, chargerType),
-              _infoChip(Icons.bolt, "$capacity kW"),
-              _infoChip(
-                status == "Available" ? Icons.check_circle : Icons.cancel,
-                status,
-                color: statusColor,
+              _buildChargerInfoBox(
+                icon: Icons.directions_car,
+                title: "Car Charger",
+                capacityInfo: "Capacity: 60KW",
+              ),
+              const SizedBox(width: 10),
+              _buildChargerInfoBox(
+                icon: Icons.two_wheeler,
+                title: "Bike Charger",
+                capacityInfo: "Capacity: 15KW",
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const Spacer(), // Pushes buttons to the bottom
           // Buttons
           Row(
             children: [
@@ -98,14 +144,15 @@ class StationCard extends StatelessWidget {
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.green,
-                    side: const BorderSide(color: Colors.green),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: const BorderSide(color: Colors.green, width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 8), // Reduced vertical padding
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
+                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   onPressed: onViewPressed,
-                  child: const Text("View"),
+                  child: const Text("View station"),
                 ),
               ),
               const SizedBox(width: 12),
@@ -114,29 +161,20 @@ class StationCard extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 8), // Reduced vertical padding
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
+                     textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   onPressed: onBookPressed,
-                  child: const Text("Book"),
+                  child: const Text("Book Charger"),
                 ),
               ),
             ],
           )
         ],
       ),
-    );
-  }
-
-  Widget _infoChip(IconData icon, String label, {Color color = Colors.black}) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 13, color: color)),
-      ],
     );
   }
 }

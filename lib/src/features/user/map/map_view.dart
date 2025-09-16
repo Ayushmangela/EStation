@@ -5,7 +5,7 @@ import 'dart:async';
 import 'package:flutter/services.dart' show rootBundle;
 
 import 'map_controller.dart';
-import 'station_card.dart';
+import 'station_card.dart'; // Ensure this is the updated StationCard
 
 class UserMapView extends StatefulWidget {
   const UserMapView({super.key});
@@ -51,7 +51,7 @@ class _UserMapViewState extends State<UserMapView> {
         _animateToStation(station);
       }
     }).then((_) {
-      if (mounted) setState(() {});
+      if (mounted) setState(() {}); // Refresh to show markers after loading
     });
   }
 
@@ -76,14 +76,23 @@ class _UserMapViewState extends State<UserMapView> {
   Future<void> _getCurrentLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+      if (!serviceEnabled) {
+          debugPrint("Location services disabled.");
+          return;
+      }
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
+        if (permission == LocationPermission.denied) {
+            debugPrint("Location permission denied.");
+            return;
+        }
       }
-      if (permission == LocationPermission.deniedForever) return;
+      if (permission == LocationPermission.deniedForever) {
+          debugPrint("Location permission permanently denied.");
+          return;
+      }
 
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
@@ -133,14 +142,13 @@ class _UserMapViewState extends State<UserMapView> {
           ),
           if (_showMap && _selectedStation != null)
             Positioned(
-              bottom: 20,
+              bottom: 100,
               left: 0,
               right: 0,
               child: StationCard(
                 name: _selectedStation!['name'] ?? "Charging Station",
                 address: _selectedStation!['address'] ?? "No address",
-                chargerType: _selectedStation!['charger_type'] ?? "AC/DC Charger",
-                capacity: _selectedStation!['capacity']?.toString() ?? "N/A",
+                // chargerType and capacity removed here
                 onViewPressed: () {
                   if (mounted) setState(() => _selectedStation = null);
                 },
@@ -179,8 +187,7 @@ class _UserMapViewState extends State<UserMapView> {
         return StationCard(
           name: station['name'] ?? 'Charging Station',
           address: station['address'] ?? 'No address',
-          chargerType: station['charger_type'] ?? "AC/DC Charger",
-          capacity: station['capacity']?.toString() ?? 'N/A',
+          // chargerType and capacity removed here
           onViewPressed: () {
             if (mounted) {
               setState(() {
