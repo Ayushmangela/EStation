@@ -54,12 +54,15 @@ class _ChargingViewState extends State<ChargingView> {
         ),
         foregroundColor: Colors.black,
       ),
-      body: Column(
-        children: [
-          // Scanner Section
-          Flexible(
-            flex: 3, // Changed from 2 to 3
-            child: Container(
+      body: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20, // safe space for keyboard
+        ),
+        child: Column(
+          children: [
+            // Scanner Section
+            Container(
+              height: MediaQuery.of(context).size.height * 0.45,
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
@@ -103,8 +106,7 @@ class _ChargingViewState extends State<ChargingView> {
                         }
                       },
                     ),
-
-                    // Overlay effect
+                    // Overlay
                     Container(
                       decoration: BoxDecoration(
                         border: Border.all(
@@ -114,8 +116,6 @@ class _ChargingViewState extends State<ChargingView> {
                         borderRadius: BorderRadius.circular(24),
                       ),
                     ),
-
-                    // Text Overlay
                     if (_scannedQrCodeValue == null)
                       Align(
                         alignment: Alignment.bottomCenter,
@@ -135,12 +135,10 @@ class _ChargingViewState extends State<ChargingView> {
                 ),
               ),
             ),
-          ),
 
-          // Manual Entry Section
-          Flexible(
-            flex: 3,
-            child: Container(
+            // Manual Entry Section
+            Container(
+              width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -160,7 +158,9 @@ class _ChargingViewState extends State<ChargingView> {
                     Text(
                       "Scanned QR: $_scannedQrCodeValue",
                       style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600, color: Colors.blue),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue),
                     ),
                     const SizedBox(height: 10),
                     TextButton.icon(
@@ -175,7 +175,9 @@ class _ChargingViewState extends State<ChargingView> {
                   const Text(
                     "Or enter charger ID",
                     style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -225,8 +227,8 @@ class _ChargingViewState extends State<ChargingView> {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

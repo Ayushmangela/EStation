@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
-// Adjusted import paths for the new structure:
+
+// Corrected import paths based on your file structure
 import '../widgets/dotted_arc_painter.dart';
 import '../../data/models/onboarding_page.dart';
+import '../../features/user/home/user_home_view.dart'; // Import the user home page
 
-class OnboardingView extends StatefulWidget { // New class name
+class OnboardingView extends StatefulWidget {
   const OnboardingView({super.key});
 
   @override
-  _OnboardingViewState createState() => _OnboardingViewState(); // New state class name
+  _OnboardingViewState createState() => _OnboardingViewState();
 }
 
-class _OnboardingViewState extends State<OnboardingView> { // New state class name
+class _OnboardingViewState extends State<OnboardingView> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // Assuming OnboardingPage model will be moved to src/data/models/
-  // and DottedArcPainter to src/presentation/widgets/
   final List<OnboardingPage> _pages = [
     OnboardingPage(
       title: "Get your smart life with\nsmart bike",
       description:
       "The future of transportation is electric, and we\'re here to help you get there.",
-      image: "assets/scooty.png", // Asset paths remain the same relative to project root
+      image: "assets/scooty.png",
       color: const Color(0xFFE3F2FD),
       imageWidth: 500,
       imageHeight: 500,
@@ -68,12 +68,10 @@ class _OnboardingViewState extends State<OnboardingView> { // New state class na
   }
 
   void _finishOnboarding() {
-    // Navigation will need to be updated to use App routes if defined in app.dart
-    // For now, using named routes as it was.
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      '/login',
-          (route) => false,
-      arguments: {'animate': true},
+    // This logic now navigates directly to the UserHomeView and removes the
+    // onboarding screen from the navigation stack, so the user can't go back.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const UserHomeView()),
     );
   }
 
@@ -183,7 +181,6 @@ class _OnboardingViewState extends State<OnboardingView> { // New state class na
                       top: 10,
                       left: 0,
                       right: 0,
-                      // Assuming DottedArcPainter is correctly imported
                       child: CustomPaint(
                         painter: DottedArcPainter(),
                         size: const Size(double.infinity, 100),
