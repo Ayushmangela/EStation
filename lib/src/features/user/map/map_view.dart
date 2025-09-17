@@ -5,7 +5,7 @@ import 'dart:async';
 import 'package:flutter/services.dart' show rootBundle;
 
 import 'map_controller.dart';
-import 'station_card.dart'; // Ensure this is the updated StationCard
+import 'station_card.dart';
 
 class UserMapView extends StatefulWidget {
   const UserMapView({super.key});
@@ -15,13 +15,13 @@ class UserMapView extends StatefulWidget {
 }
 
 class _UserMapViewState extends State<UserMapView> {
-  final Completer<GoogleMapController> _controllerCompleter = Completer();
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
+  final MapController _mapControllerHelper = MapController();
 
   LatLng? _currentPosition;
   String? _mapStyle;
   bool _isLoading = true;
-  bool _showMap = true;
+  bool _showListView = false;
   Map<String, dynamic>? _selectedStation;
 
   @override
@@ -31,37 +31,48 @@ class _UserMapViewState extends State<UserMapView> {
   }
 
   Future<void> _initializeMap() async {
+    debugPrint("[UserMapView] _initializeMap STARTED"); // ADDED THIS
     await _getCurrentLocation();
 
     if (mounted) setState(() => _isLoading = false);
 
-    _loadMapStyle().then((_) async {
-      if (mounted && _mapStyle != null) {
-        final GoogleMapController controller = await _controllerCompleter.future;
-        controller.setMapStyle(_mapStyle);
-      }
-    });
+    _loadMapStyle();
 
-    _mapController.loadStations((station) {
+    debugPrint("[UserMapView] CALLING _mapControllerHelper.loadStations()"); // ADDED THIS
+    _mapControllerHelper.loadStations((station) {
       if (mounted) {
         setState(() {
           _selectedStation = station;
-          _showMap = true;
+          _showListView = false;
         });
         _animateToStation(station);
       }
     }).then((_) {
-      if (mounted) setState(() {}); // Refresh to show markers after loading
+      if (mounted) setState(() {});
     });
   }
 
   Future<void> _animateToStation(Map<String, dynamic> station) async {
-    final GoogleMapController controller = await _controllerCompleter.future;
+    // Added debug prints from previous step - keeping them
+    debugPrint("Attempting to animate to station: ${station['name']}");
+    debugPrint("Raw station data for animation: $station");
     final LatLng? stationPosition = station['position'] as LatLng?;
-    if (stationPosition != null) {
-      controller.animateCamera(CameraUpdate.newCameraPosition(
-        CameraPosition(target: stationPosition, zoom: 17),
-      ));
+    debugPrint("Parsed LatLng for station: $stationPosition");
+
+    try {
+      if (_mapController != null && stationPosition != null) {
+        debugPrint("Animating to $stationPosition for station: ${station['name']}");
+        await _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: stationPosition, zoom: 17),
+          ),
+        );
+        debugPrint("Successfully animated to station: ${station['name']}");
+      } else {
+        debugPrint("Animation skipped: _mapController is null or stationPosition is null for ${station['name']}");
+      }
+    } catch (e) {
+      debugPrint("Error animating to station: $e");
     }
   }
 
@@ -77,21 +88,21 @@ class _UserMapViewState extends State<UserMapView> {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-          debugPrint("Location services disabled.");
-          return;
+        debugPrint("Location services disabled.");
+        return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-            debugPrint("Location permission denied.");
-            return;
+          debugPrint("Location permission denied.");
+          return;
         }
       }
       if (permission == LocationPermission.deniedForever) {
-          debugPrint("Location permission permanently denied.");
-          return;
+        debugPrint("Location permission permanently denied.");
+        return;
       }
 
       Position position = await Geolocator.getCurrentPosition(
@@ -115,32 +126,39 @@ class _UserMapViewState extends State<UserMapView> {
           ? const Center(child: CircularProgressIndicator())
           : Stack(
         children: [
-          Positioned.fill(
-            child: _showMap
-                ? GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target:
-                _currentPosition ?? const LatLng(19.0760, 72.8777),
-                zoom: _currentPosition != null ? 16 : 12,
-              ),
-              onMapCreated: (controller) {
-                if (!_controllerCompleter.isCompleted) {
-                  _controllerCompleter.complete(controller);
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _currentPosition ?? const LatLng(19.0760, 72.8777),
+              zoom: _currentPosition != null ? 16 : 12,
+            ),
+            onMapCreated: (GoogleMapController controller) async {
+              _mapController = controller;
+              debugPrint("Map controller created");
+
+              if (_mapStyle != null) {
+                try {
+                  await controller.setMapStyle(_mapStyle);
+                  debugPrint("Map style applied");
+                } catch (e) {
+                  debugPrint("Error setting map style: $e");
                 }
-                if (_mapStyle != null) controller.setMapStyle(_mapStyle);
-              },
-              markers: _mapController.markers,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: false,
-              compassEnabled: true,
-              onTap: (_) {
-                if (mounted) setState(() => _selectedStation = null);
-              },
-            )
-                : _buildListView(),
+              }
+            },
+            markers: _mapControllerHelper.markers,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: true,
+            zoomControlsEnabled: false,
+            compassEnabled: true,
+            onTap: (_) {
+              if (mounted) setState(() => _selectedStation = null);
+            },
           ),
-          if (_showMap && _selectedStation != null)
+          if (_showListView)
+            Container(
+              color: Colors.white,
+              child: _buildListView(),
+            ),
+          if (!_showListView && _selectedStation != null)
             Positioned(
               bottom: 100,
               left: 0,
@@ -148,7 +166,6 @@ class _UserMapViewState extends State<UserMapView> {
               child: StationCard(
                 name: _selectedStation!['name'] ?? "Charging Station",
                 address: _selectedStation!['address'] ?? "No address",
-                // chargerType and capacity removed here
                 onViewPressed: () {
                   if (mounted) setState(() => _selectedStation = null);
                 },
@@ -175,10 +192,13 @@ class _UserMapViewState extends State<UserMapView> {
   }
 
   Widget _buildListView() {
-    final stations = _mapController.stations;
+    final stations = _mapControllerHelper.stations;
     if (stations.isEmpty) {
-      return const Center(child: Text("Loading stations or no stations available..."));
+      return const Center(
+        child: Text("Loading stations or no stations available..."),
+      );
     }
+
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 120, 16, 16),
       itemCount: stations.length,
@@ -187,15 +207,19 @@ class _UserMapViewState extends State<UserMapView> {
         return StationCard(
           name: station['name'] ?? 'Charging Station',
           address: station['address'] ?? 'No address',
-          // chargerType and capacity removed here
           onViewPressed: () {
+            debugPrint("View station tapped: ${station['name']}");
+            debugPrint("Station position: ${station['position']}");
+
             if (mounted) {
               setState(() {
                 _selectedStation = station;
-                _showMap = true;
+                _showListView = false;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _animateToStation(station);
               });
             }
-            _animateToStation(station);
           },
           onBookPressed: () {
             debugPrint("Book button tapped for ${station['name']}");
@@ -249,26 +273,32 @@ class _UserMapViewState extends State<UserMapView> {
       children: [
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: _showMap ? Colors.green : Colors.white,
-            foregroundColor: _showMap ? Colors.white : Colors.black,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            backgroundColor: !_showListView ? Colors.green : Colors.white,
+            foregroundColor: !_showListView ? Colors.white : Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           onPressed: () {
-            if (mounted) setState(() => _showMap = true);
+            if (mounted) {
+              setState(() => _showListView = false);
+            }
           },
           child: const Text("Map view"),
         ),
         const SizedBox(width: 8),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: !_showMap ? Colors.green : Colors.white,
-            foregroundColor: !_showMap ? Colors.white : Colors.black,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            backgroundColor: _showListView ? Colors.green : Colors.white,
+            foregroundColor: _showListView ? Colors.white : Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           onPressed: () {
             if (mounted) {
               setState(() {
-                _showMap = false;
+                _showListView = true;
                 _selectedStation = null;
               });
             }

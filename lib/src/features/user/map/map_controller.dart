@@ -14,6 +14,7 @@ class MapController {
   List<Map<String, dynamic>> get stations => _stations;
 
   Future<void> loadStations(StationTapCallback onStationTapped) async {
+    debugPrint("[MapController] loadStations STARTED"); // ADDED THIS
     final fetchedStations = await _mapService.fetchStations();
 
     _markers.clear();
