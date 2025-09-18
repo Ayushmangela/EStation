@@ -5,6 +5,7 @@ import 'presentation/pages/signup_view.dart';
 import 'presentation/pages/forgot_password_view.dart';
 import 'features/admin/dashboard/admin_home_view.dart';
 import 'features/user/home/user_home_view.dart';
+import 'presentation/pages/auth_view.dart'; // Added import for AuthView
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -34,6 +35,7 @@ class MyApp extends StatelessWidget {
         '/forgot-password': (context) => const ForgotPasswordView(),
         '/admin-home': (context) => const AdminHomeView(),
         '/user-home': (context) => const UserHomeView(),
+        '/auth': (context) => const AuthView(), // Added /auth route
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/onboarding' && settings.arguments != null) {

@@ -24,7 +24,8 @@ class _ProfileViewState extends State<ProfileView> {
         _profileController.user == null &&
         _profileController.errorMessage == null &&
         mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      // Navigate to AuthView after logout
+      Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
     } else if (mounted) {
       setState(() {});
     }
@@ -66,6 +67,9 @@ class _ProfileViewState extends State<ProfileView> {
     }
 
     if (_profileController.user == null) {
+      // This case might be hit briefly during logout before navigation
+      // or if fetchUserData fails and then user becomes null.
+      // The _onProfileChanged should handle navigation to /auth.
       return const Center(
         child: Text(
           "No user data available. Please try logging in again.",
@@ -134,6 +138,7 @@ class _ProfileViewState extends State<ProfileView> {
             onTap: () async {
               if (_profileController.isLoading) return;
               await _profileController.logout();
+              // Navigation is handled by _onProfileChanged
             },
           ),
         ]),

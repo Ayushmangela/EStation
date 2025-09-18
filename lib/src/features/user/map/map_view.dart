@@ -64,7 +64,7 @@ class _UserMapViewState extends State<UserMapView> {
         debugPrint("Animating to $stationPosition for station: ${station['name']}");
         await _mapController!.animateCamera(
           CameraUpdate.newCameraPosition(
-            CameraPosition(target: stationPosition, zoom: 14),
+            CameraPosition(target: stationPosition, zoom: 17),
           ),
         );
         debugPrint("Successfully animated to station: ${station['name']}");

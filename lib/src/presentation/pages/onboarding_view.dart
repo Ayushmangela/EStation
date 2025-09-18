@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-
-// Removed import for DottedArcPainter as it's no longer used
 import '../../data/models/onboarding_page.dart';
-import 'login_view.dart'; // Correct path to LoginView
+import 'auth_view.dart'; // Changed path to AuthView
 
 class OnboardingView extends StatefulWidget {
   const OnboardingView({super.key});
@@ -15,12 +13,12 @@ class _OnboardingViewState extends State<OnboardingView> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // Updated pages data with your content
+  // Pages data
   final List<OnboardingPage> _pages = [
     OnboardingPage(
       title: "Get your smart life with\nsmart bike",
       description:
-      "The future of transportation is electric, and we're here to help you get there.",
+      "The future of transportation is electric, and we\'re here to help you get there.",
       image: "assets/scooty.png",
       color: const Color(0xFFE3F2FD),
       imageWidth: 500,
@@ -69,7 +67,7 @@ class _OnboardingViewState extends State<OnboardingView> {
 
   void _finishOnboarding() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginView()),
+      MaterialPageRoute(builder: (_) => const AuthView()), // Changed to AuthView
     );
   }
 
@@ -80,6 +78,7 @@ class _OnboardingViewState extends State<OnboardingView> {
     return Scaffold(
       body: Stack(
         children: [
+          // PageView
           PageView.builder(
             controller: _pageController,
             onPageChanged: (index) {
@@ -92,24 +91,32 @@ class _OnboardingViewState extends State<OnboardingView> {
               return _buildPage(_pages[index]);
             },
           ),
-          // Skip Button - only show if not the last page
-          if (!isLastPage)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 10, // Consider safe area
-              right: 20,
-              child: TextButton(
-                onPressed: _skipOnboarding,
-                child: const Text(
-                  'Skip',
-                  style: TextStyle(
-                    color: Colors.black54, // Changed for better contrast on light backgrounds
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+
+          // Skip Button (fades out on last page)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            right: 20,
+            child: AnimatedOpacity(
+              opacity: isLastPage ? 0.0 : 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: IgnorePointer(
+                ignoring: isLastPage,
+                child: TextButton(
+                  onPressed: _skipOnboarding,
+                  child: const Text(
+                    'Skip',
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),
             ),
-          // Bottom Controls (Indicators and Next Button)
+          ),
+
+          // Bottom Controls
           Positioned(
             bottom: 40,
             left: 24,
@@ -117,32 +124,40 @@ class _OnboardingViewState extends State<OnboardingView> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Page Indicators
+                // Page Indicators (wide + scale for current page)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(
                     _pages.length,
-                    (index) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: _currentPage == index ? 20 : 8, // Active dot is wider
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: _currentPage == index ? Colors.black87 : Colors.grey[400], // Changed for better contrast
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
+                        (index) {
+                      bool isActive = _currentPage == index;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: isActive ? 20 : 8,
+                        height: 8,
+                        curve: Curves.easeInOut,
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? Colors.black87
+                              : Colors.grey[400],
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                      );
+                    },
                   ),
                 ),
-                // Next Button / Get Started Button
-                Container(
-                  width: isLastPage ? 120 : 50, // Wider for text
+
+                // Next / Get Started Button
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  width: isLastPage ? 120 : 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: Colors.white, 
-                    // Make it a rounded rectangle if it's the last page and has text
-                    borderRadius: isLastPage ? BorderRadius.circular(25) : null,
-                    shape: isLastPage ? BoxShape.rectangle : BoxShape.circle,
+                    color: Colors.white,
+                    borderRadius:
+                    BorderRadius.circular(isLastPage ? 25 : 50),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.15),
@@ -155,22 +170,33 @@ class _OnboardingViewState extends State<OnboardingView> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: _nextPage,
-                      borderRadius: isLastPage ? BorderRadius.circular(25) : BorderRadius.circular(50),
+                      borderRadius:
+                      BorderRadius.circular(isLastPage ? 25 : 50),
                       child: Center(
-                        child: isLastPage
-                            ? const Text(
-                                'Get Started',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.arrow_forward_ios,
-                                color: Colors.black, 
-                                size: 20,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(
+                                opacity: animation,
+                                child: child,
                               ),
+                          child: isLastPage
+                              ? const Text(
+                            'Get Started',
+                            key: ValueKey("text"),
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                              : const Icon(
+                            Icons.arrow_forward_ios,
+                            key: ValueKey("icon"),
+                            color: Colors.black,
+                            size: 20,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -185,15 +211,16 @@ class _OnboardingViewState extends State<OnboardingView> {
 
   Widget _buildPage(OnboardingPage page) {
     return Container(
-      color: page.color, // Page background color (e.g., light blue, light green)
+      color: page.color,
       width: double.infinity,
       height: double.infinity,
       child: Column(
         children: [
           Expanded(
-            flex: 7, // Adjust flex to give more space to image
+            flex: 7,
             child: Padding(
-              padding: const EdgeInsets.only(top: 60.0, bottom: 20.0, left: 20.0, right: 20.0), // Add padding for image
+              padding: const EdgeInsets.only(
+                  top: 60.0, bottom: 20.0, left: 20.0, right: 20.0),
               child: Image.asset(
                 page.image,
                 fit: BoxFit.contain,
@@ -201,7 +228,7 @@ class _OnboardingViewState extends State<OnboardingView> {
             ),
           ),
           Expanded(
-            flex: 3, // Adjust flex for text content
+            flex: 3,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
@@ -212,9 +239,10 @@ class _OnboardingViewState extends State<OnboardingView> {
                     page.title,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: MediaQuery.of(context).size.width * 0.07, // Adjusted font size slightly
+                      fontSize:
+                      MediaQuery.of(context).size.width * 0.07,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87, // Changed for better contrast on light backgrounds
+                      color: Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -222,8 +250,9 @@ class _OnboardingViewState extends State<OnboardingView> {
                     page.description,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: MediaQuery.of(context).size.width * 0.04,
-                      color: Colors.black54, // Changed for better contrast on light backgrounds
+                      fontSize:
+                      MediaQuery.of(context).size.width * 0.04,
+                      color: Colors.black54,
                       height: 1.4,
                     ),
                   ),

@@ -69,7 +69,7 @@ class _UserHomeViewState extends State<UserHomeView> {
         color: Colors.black, // navbar background
         circleColor: Colors.green, // moving circle color
         cornerRadius: const BorderRadius.only(
-          topLeft: Radius.circular(8),
+          topLeft: Radius.circular(17),
           topRight: Radius.circular(17),
           bottomRight: Radius.circular(24),
           bottomLeft: Radius.circular(24),

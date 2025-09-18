@@ -35,6 +35,8 @@ dependencies:
   geolocator: ^12.0.0
   mobile_scanner: ^5.1.0 # Added mobile_scanner for QR code scanning
   circle_nav_bar: ^2.2.0
+  google_fonts: ^6.2.1 # Add this line
+
 
 
 
