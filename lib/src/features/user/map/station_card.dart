@@ -5,6 +5,7 @@ class StationCard extends StatelessWidget {
   final String address;
   final VoidCallback onViewPressed;
   final VoidCallback onBookPressed;
+  final String viewLabel; // 👈 dynamic button label
 
   const StationCard({
     super.key,
@@ -12,6 +13,7 @@ class StationCard extends StatelessWidget {
     required this.address,
     required this.onViewPressed,
     required this.onBookPressed,
+    this.viewLabel = "View Station", // 👈 default
   });
 
   Widget _buildChargerInfoBox({
@@ -21,7 +23,7 @@ class StationCard extends StatelessWidget {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), // Reduced vertical padding
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.grey[100],
           borderRadius: BorderRadius.circular(10),
@@ -44,7 +46,6 @@ class StationCard extends StatelessWidget {
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 0), // Reduced space
                   Text(
                     capacityInfo,
                     style: TextStyle(
@@ -65,8 +66,8 @@ class StationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 200.0, // Target height
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), // Reduced top/bottom card padding
+      height: 200,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -81,7 +82,6 @@ class StationCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.max,
         children: [
           // Title Row
           Row(
@@ -91,8 +91,9 @@ class StationCard extends StatelessWidget {
                 child: Text(
                   name,
                   style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -103,7 +104,6 @@ class StationCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 0), // Reduced space between name and address
           // Address
           Row(
             children: [
@@ -119,8 +119,8 @@ class StationCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8), // Reduced space before charger info
-          // Static Charger Info Boxes
+          const SizedBox(height: 8),
+          // Charger Info
           Row(
             children: [
               _buildChargerInfoBox(
@@ -136,7 +136,7 @@ class StationCard extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(), // Pushes buttons to the bottom
+          const Spacer(),
           // Buttons
           Row(
             children: [
@@ -145,14 +145,17 @@ class StationCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.green,
                     side: const BorderSide(color: Colors.green, width: 1.5),
-                    padding: const EdgeInsets.symmetric(vertical: 8), // Reduced vertical padding
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   onPressed: onViewPressed,
-                  child: const Text("View station"),
+                  child: Text(viewLabel), // 👈 dynamic
                 ),
               ),
               const SizedBox(width: 12),
@@ -161,11 +164,14 @@ class StationCard extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8), // Reduced vertical padding
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
-                     textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   onPressed: onBookPressed,
                   child: const Text("Book Charger"),

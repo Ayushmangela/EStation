@@ -6,6 +6,7 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import 'map_controller.dart';
 import 'station_card.dart';
+import '../station/station_view.dart';
 
 class UserMapView extends StatefulWidget {
   const UserMapView({super.key});
@@ -31,14 +32,12 @@ class _UserMapViewState extends State<UserMapView> {
   }
 
   Future<void> _initializeMap() async {
-    debugPrint("[UserMapView] _initializeMap STARTED"); // ADDED THIS
     await _getCurrentLocation();
 
     if (mounted) setState(() => _isLoading = false);
 
     _loadMapStyle();
 
-    debugPrint("[UserMapView] CALLING _mapControllerHelper.loadStations()"); // ADDED THIS
     _mapControllerHelper.loadStations((station) {
       if (mounted) {
         setState(() {
@@ -53,23 +52,14 @@ class _UserMapViewState extends State<UserMapView> {
   }
 
   Future<void> _animateToStation(Map<String, dynamic> station) async {
-    // Added debug prints from previous step - keeping them
-    debugPrint("Attempting to animate to station: ${station['name']}");
-    debugPrint("Raw station data for animation: $station");
     final LatLng? stationPosition = station['position'] as LatLng?;
-    debugPrint("Parsed LatLng for station: $stationPosition");
-
     try {
       if (_mapController != null && stationPosition != null) {
-        debugPrint("Animating to $stationPosition for station: ${station['name']}");
         await _mapController!.animateCamera(
           CameraUpdate.newCameraPosition(
             CameraPosition(target: stationPosition, zoom: 17),
           ),
         );
-        debugPrint("Successfully animated to station: ${station['name']}");
-      } else {
-        debugPrint("Animation skipped: _mapController is null or stationPosition is null for ${station['name']}");
       }
     } catch (e) {
       debugPrint("Error animating to station: $e");
@@ -87,23 +77,14 @@ class _UserMapViewState extends State<UserMapView> {
   Future<void> _getCurrentLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        debugPrint("Location services disabled.");
-        return;
-      }
+      if (!serviceEnabled) return;
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          debugPrint("Location permission denied.");
-          return;
-        }
+        if (permission == LocationPermission.denied) return;
       }
-      if (permission == LocationPermission.deniedForever) {
-        debugPrint("Location permission permanently denied.");
-        return;
-      }
+      if (permission == LocationPermission.deniedForever) return;
 
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
@@ -133,12 +114,9 @@ class _UserMapViewState extends State<UserMapView> {
             ),
             onMapCreated: (GoogleMapController controller) async {
               _mapController = controller;
-              debugPrint("Map controller created");
-
               if (_mapStyle != null) {
                 try {
                   await controller.setMapStyle(_mapStyle);
-                  debugPrint("Map style applied");
                 } catch (e) {
                   debugPrint("Error setting map style: $e");
                 }
@@ -154,10 +132,7 @@ class _UserMapViewState extends State<UserMapView> {
             },
           ),
           if (_showListView)
-            Container(
-              color: Colors.white,
-              child: _buildListView(),
-            ),
+            Container(color: Colors.white, child: _buildListView()),
           if (!_showListView && _selectedStation != null)
             Positioned(
               bottom: 100,
@@ -166,13 +141,22 @@ class _UserMapViewState extends State<UserMapView> {
               child: StationCard(
                 name: _selectedStation!['name'] ?? "Charging Station",
                 address: _selectedStation!['address'] ?? "No address",
+                viewLabel: "View Detail", // ✅ Map view mode
                 onViewPressed: () {
-                  if (mounted) setState(() => _selectedStation = null);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => StationView(
+                        station: _selectedStation!, // ✅ navigate to detail page
+                      ),
+                    ),
+                  );
                 },
                 onBookPressed: () {
                   debugPrint("Book tapped for ${_selectedStation!['name']}");
                 },
               ),
+
             ),
           SafeArea(
             child: Padding(
@@ -207,10 +191,8 @@ class _UserMapViewState extends State<UserMapView> {
         return StationCard(
           name: station['name'] ?? 'Charging Station',
           address: station['address'] ?? 'No address',
+          viewLabel: "View Station", // ✅ List view mode
           onViewPressed: () {
-            debugPrint("View station tapped: ${station['name']}");
-            debugPrint("Station position: ${station['position']}");
-
             if (mounted) {
               setState(() {
                 _selectedStation = station;
@@ -225,6 +207,7 @@ class _UserMapViewState extends State<UserMapView> {
             debugPrint("Book button tapped for ${station['name']}");
           },
         );
+
       },
     );
   }
@@ -280,9 +263,7 @@ class _UserMapViewState extends State<UserMapView> {
             ),
           ),
           onPressed: () {
-            if (mounted) {
-              setState(() => _showListView = false);
-            }
+            if (mounted) setState(() => _showListView = false);
           },
           child: const Text("Map view"),
         ),
