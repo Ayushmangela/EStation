@@ -34,6 +34,7 @@ dependencies:
   google_maps_flutter: ^2.13.1 # Added google_maps_flutter
   geolocator: ^12.0.0
   mobile_scanner: ^5.1.0 # Added mobile_scanner for QR code scanning
+  intl: ^0.18.1  # <-- ADD THIS LINE
   circle_nav_bar: ^2.2.0
   google_fonts: ^6.2.1 # Add this line
 

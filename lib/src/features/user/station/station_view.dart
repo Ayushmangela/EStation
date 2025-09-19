@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../booking/booking_view.dart'; // Import for BookingView
 
 class StationView extends StatefulWidget {
   final Map<String, dynamic> station;
@@ -15,18 +16,26 @@ class _StationViewState extends State<StationView> {
   @override
   Widget build(BuildContext context) {
     final String name = widget.station['name'] ?? "Greenspeed Station";
-    final String address = widget.station['address'] ?? "1901 Thornridge Cir. Shiloh, Hawaii";
+    final String address =
+        widget.station['address'] ?? "1901 Thornridge Cir. Shiloh, Hawaii";
 
     // Using local asset for the image
-    const String localImageAssetPath = "assets/ev-charging.jpg"; 
+    const String localImageAssetPath = "assets/ev-charging.jpg";
 
     const String stationStatus = "Open 24 hour";
     const String distance = "4.5 km";
-    const String cost = "\$15.00 / hour";
+    const String cost = "550.00 hour";
     const String parking = "Free";
     const List<String> amenities = ["Wifi", "Gym", "Park", "Parking"];
-    const String chargerName = "BS 18548";
-    const String chargerStatus = "Available";
+
+    // Placeholder details for specific chargers
+    const String carChargerName = "Car Charger";
+    const String carChargerCapacity = "60KW"; // Changed from status to capacity
+    const IconData carChargerIcon = Icons.directions_car_filled_rounded;
+
+    const String bikeChargerName = "Bike Charger";
+    const String bikeChargerCapacity = "15KW"; // Changed from status to capacity
+    const IconData bikeChargerIcon = Icons.two_wheeler_rounded;
 
     Map<String, IconData> amenityIcons = {
       "Wifi": Icons.wifi,
@@ -48,25 +57,26 @@ class _StationViewState extends State<StationView> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.asset( // Changed to Image.asset
-                    localImageAssetPath, // Using local asset path
+                  Image.asset(
+                    localImageAssetPath,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
-                       // Fallback for asset loading error (e.g., if not in pubspec.yaml or path is wrong)
-                       debugPrint("Error loading asset image: $error");
-                       return Container(
-                         color: Colors.grey[300],
-                         child: const Center(
-                           child: Column(
-                             mainAxisAlignment: MainAxisAlignment.center,
-                             children: [
-                               Icon(Icons.broken_image, size: 50, color: Colors.grey),
-                               SizedBox(height: 8),
-                               Text("Image not found", style: TextStyle(color: Colors.grey)),
-                             ],
-                           ),
-                         ),
-                       );
+                      debugPrint("Error loading asset image: $error");
+                      return Container(
+                        color: Colors.grey[300],
+                        child: const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image,
+                                  size: 50, color: Colors.grey),
+                              SizedBox(height: 8),
+                              Text("Image not found",
+                                  style: TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                      );
                     },
                   ),
                   Container(
@@ -74,7 +84,10 @@ class _StationViewState extends State<StationView> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.black.withOpacity(0.5), Colors.transparent],
+                        colors: [
+                          Colors.black.withOpacity(0.5),
+                          Colors.transparent
+                        ],
                       ),
                     ),
                   ),
@@ -101,12 +114,13 @@ class _StationViewState extends State<StationView> {
                       _isFavorite ? Icons.favorite : Icons.favorite_border,
                       color: _isFavorite ? Colors.red : Colors.grey,
                     ),
-                    iconSize: 28,
+                    iconSize: 26,
                     onPressed: () {
                       setState(() {
                         _isFavorite = !_isFavorite;
                       });
-                      debugPrint("Favorite tapped for $name, isFavorite: $_isFavorite");
+                      debugPrint(
+                          "Favorite tapped for $name, isFavorite: $_isFavorite");
                     },
                   ),
                 ),
@@ -124,13 +138,17 @@ class _StationViewState extends State<StationView> {
                       Expanded(
                         child: Text(
                           name,
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         stationStatus,
-                        style: const TextStyle(fontSize: 14, color: Colors.green, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -161,17 +179,22 @@ class _StationViewState extends State<StationView> {
                           amenityIcons[amenityName] ?? Icons.help_outline,
                         );
                       },
-                      separatorBuilder: (context, index) => const SizedBox(width: 10),
+                      separatorBuilder: (context, index) =>
+                      const SizedBox(width: 10),
                     ),
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    "Chargers :", 
+                    "Chargers :",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 12),
-                  _buildChargerCard(chargerName, chargerStatus),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 2),
+                  _buildChargerCard(
+                      carChargerName, carChargerCapacity, carChargerIcon), // Updated to use capacity
+                  const SizedBox(height: 1), // Spacing between charger cards
+                  _buildChargerCard(
+                      bikeChargerName, bikeChargerCapacity, bikeChargerIcon), // Updated to use capacity
+                  const SizedBox(height: 1),
                 ],
               ),
             ),
@@ -188,13 +211,15 @@ class _StationViewState extends State<StationView> {
                   backgroundColor: Colors.grey[200],
                   foregroundColor: Colors.black87,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
                 onPressed: () {
                   debugPrint("Get direction for $name");
                 },
-                child: const Text("Get direction", style: TextStyle(fontSize: 16)),
+                child:
+                const Text("Get direction", style: TextStyle(fontSize: 16)),
               ),
             ),
             const SizedBox(width: 16),
@@ -204,15 +229,20 @@ class _StationViewState extends State<StationView> {
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
                   debugPrint("Booking a slot at $name");
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Booking initiated for $name")),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const BookingView()),
                   );
                 },
-                child: const Text("Book a slot", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text("Book a slot",
+                    style:
+                    TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -229,20 +259,29 @@ class _StationViewState extends State<StationView> {
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 15, color: Colors.black54, fontWeight: FontWeight.w500),
+            style: const TextStyle(
+                fontSize: 15,
+                color: Colors.black54,
+                fontWeight: FontWeight.w500),
           ),
           const SizedBox(width: 8),
           if (isExpanded)
             Expanded(
               child: Text(
                 value,
-                style: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500),
               ),
             )
           else
             Text(
               value,
-              style: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                  fontSize: 15,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500),
             ),
         ],
       ),
@@ -273,7 +312,7 @@ class _StationViewState extends State<StationView> {
     );
   }
 
-  Widget _buildChargerCard(String name, String status) {
+  Widget _buildChargerCard(String name, String capacity, IconData iconData) { // Parameter changed from status to capacity
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -288,7 +327,7 @@ class _StationViewState extends State<StationView> {
               color: Colors.grey.shade300,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.electrical_services_rounded, color: Colors.black87, size: 30),
+            child: Icon(iconData, color: Colors.black87, size: 30),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -297,11 +336,12 @@ class _StationViewState extends State<StationView> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  status,
-                  style: const TextStyle(fontSize: 14, color: Colors.green),
+                  capacity, // Changed to display capacity
+                  style: const TextStyle(fontSize: 14, color: Colors.green), // Kept color style
                 ),
               ],
             ),

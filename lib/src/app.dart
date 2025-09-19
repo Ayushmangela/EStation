@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart'; // Added for Google Fonts
 import 'presentation/pages/onboarding_view.dart';
 import 'presentation/pages/login_view.dart';
 import 'presentation/pages/signup_view.dart';
 import 'presentation/pages/forgot_password_view.dart';
 import 'features/admin/dashboard/admin_home_view.dart';
 import 'features/user/home/user_home_view.dart';
-import 'presentation/pages/auth_view.dart'; // Added import for AuthView
+import 'presentation/pages/auth_view.dart'; 
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -16,17 +17,34 @@ class MyApp extends StatelessWidget {
       title: 'Electric Charging Station',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        fontFamily: 'Roboto',
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
+        // Set "Plus Jakarta Sans" as the default font family
+        fontFamily: 'Plus Jakarta Sans',
+        
+        // Apply "Plus Jakarta Sans" to the text themes for better integration
+        textTheme: GoogleFonts.plusJakartaSansTextTheme(
+          Theme.of(context).textTheme,
+        ),
+        primaryTextTheme: GoogleFonts.plusJakartaSansTextTheme(
+          Theme.of(context).primaryTextTheme,
+        ),
+        
+        primarySwatch: Colors.blue, // Keep your existing primary swatch or change as needed
+        scaffoldBackgroundColor: Colors.grey[100], // Example global scaffold background
+        
+        appBarTheme: AppBarTheme(
+          // Ensure AppBar uses the global font, or define it explicitly
+          titleTextStyle: GoogleFonts.plusJakartaSans(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          backgroundColor: Colors.white, // Or Colors.transparent if you prefer
           foregroundColor: Colors.black,
           elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.black54), // Consistent icon color for AppBars
         ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      // 🚀 Always start with Onboarding first
       initialRoute: '/onboarding',
       routes: {
         '/onboarding': (context) => const OnboardingView(),
@@ -35,7 +53,7 @@ class MyApp extends StatelessWidget {
         '/forgot-password': (context) => const ForgotPasswordView(),
         '/admin-home': (context) => const AdminHomeView(),
         '/user-home': (context) => const UserHomeView(),
-        '/auth': (context) => const AuthView(), // Added /auth route
+        '/auth': (context) => const AuthView(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/onboarding' && settings.arguments != null) {
