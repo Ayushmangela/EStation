@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../booking/booking_view.dart'; // Import for BookingView
+import '../favorites/favorites_service.dart'; // Import for FavoritesService
 
 class StationView extends StatefulWidget {
   final Map<String, dynamic> station;
@@ -11,30 +13,121 @@ class StationView extends StatefulWidget {
 }
 
 class _StationViewState extends State<StationView> {
-  bool _isFavorite = false; // State for the favorite button
+  bool _isFavorite = false;
+  bool _isLoadingFavorite = true; // To show loading initially for favorite status
+  late FavoritesService _favoritesService;
+  String? _userId;
+  int? _stationId;
+
+  @override
+  void initState() {
+    super.initState();
+    final supabaseClient = Supabase.instance.client;
+    _favoritesService = FavoritesService(supabaseClient);
+    _userId = supabaseClient.auth.currentUser?.id;
+    // Assuming station_id is directly in widget.station or nested if it comes from a join
+    _stationId = widget.station['station_id'] as int? ?? widget.station['charging_stations']?['station_id'] as int?;
+    
+    if (_userId != null && _stationId != null) {
+      _checkInitialFavoriteStatus();
+    } else {
+      setState(() {
+        _isLoadingFavorite = false; // Cannot check if user or station id is null
+      });
+       if (_stationId == null) {
+        print("StationView Error: station_id is null. Make sure it is passed correctly in widget.station");
+      }
+    }
+  }
+
+  Future<void> _checkInitialFavoriteStatus() async {
+    if (_userId == null || _stationId == null) return;
+    setState(() {
+      _isLoadingFavorite = true;
+    });
+    try {
+      final isFav = await _favoritesService.isFavorite(_userId!, _stationId!);
+      if (mounted) {
+        setState(() {
+          _isFavorite = isFav;
+        });
+      }
+    } catch (e) {
+      print("Error checking initial favorite status: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error checking favorite status: ${e.toString()}")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingFavorite = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_userId == null || _stationId == null || _isLoadingFavorite) return;
+
+    setState(() {
+      _isLoadingFavorite = true;
+    });
+
+    try {
+      if (_isFavorite) {
+        await _favoritesService.removeFavorite(_userId!, _stationId!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Removed from favorites"), duration: Duration(seconds: 1)),
+          );
+        }
+      } else {
+        await _favoritesService.addFavorite(_userId!, _stationId!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Added to favorites"), duration: Duration(seconds: 1)),
+          );
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _isFavorite = !_isFavorite;
+        });
+      }
+    } catch (e) {
+      print("Error toggling favorite: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error updating favorite: ${e.toString()}")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingFavorite = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final String name = widget.station['name'] ?? "Greenspeed Station";
     final String address =
         widget.station['address'] ?? "1901 Thornridge Cir. Shiloh, Hawaii";
-
-    // Using local asset for the image
     const String localImageAssetPath = "assets/ev-charging.jpg";
-
     const String stationStatus = "Open 24 hour";
     const String distance = "4.5 km";
-    const String cost = "550.00 hour";
+    const String cost = "\$15.00 / hour";
     const String parking = "Free";
     const List<String> amenities = ["Wifi", "Gym", "Park", "Parking"];
-
-    // Placeholder details for specific chargers
     const String carChargerName = "Car Charger";
-    const String carChargerCapacity = "60KW"; // Changed from status to capacity
+    const String carChargerCapacity = "60KW";
     const IconData carChargerIcon = Icons.directions_car_filled_rounded;
-
     const String bikeChargerName = "Bike Charger";
-    const String bikeChargerCapacity = "15KW"; // Changed from status to capacity
+    const String bikeChargerCapacity = "15KW";
     const IconData bikeChargerIcon = Icons.two_wheeler_rounded;
 
     Map<String, IconData> amenityIcons = {
@@ -68,11 +161,9 @@ class _StationViewState extends State<StationView> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.broken_image,
-                                  size: 50, color: Colors.grey),
+                              Icon(Icons.broken_image, size: 50, color: Colors.grey),
                               SizedBox(height: 8),
-                              Text("Image not found",
-                                  style: TextStyle(color: Colors.grey)),
+                              Text("Image not found", style: TextStyle(color: Colors.grey)),
                             ],
                           ),
                         ),
@@ -84,10 +175,7 @@ class _StationViewState extends State<StationView> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.5),
-                          Colors.transparent
-                        ],
+                        colors: [Colors.black.withOpacity(0.5), Colors.transparent],
                       ),
                     ),
                   ),
@@ -109,20 +197,16 @@ class _StationViewState extends State<StationView> {
                 padding: const EdgeInsets.all(8.0),
                 child: CircleAvatar(
                   backgroundColor: Colors.white,
-                  child: IconButton(
-                    icon: Icon(
-                      _isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: _isFavorite ? Colors.red : Colors.grey,
-                    ),
-                    iconSize: 26,
-                    onPressed: () {
-                      setState(() {
-                        _isFavorite = !_isFavorite;
-                      });
-                      debugPrint(
-                          "Favorite tapped for $name, isFavorite: $_isFavorite");
-                    },
-                  ),
+                  child: _isLoadingFavorite
+                      ? const Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator(strokeWidth: 2)) 
+                      : IconButton(
+                          icon: Icon(
+                            _isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: _isFavorite ? Colors.red : Colors.grey,
+                          ),
+                          iconSize: 26,
+                          onPressed: (_userId == null || _stationId == null) ? null : _toggleFavorite,
+                        ),
                 ),
               ),
             ],
@@ -138,17 +222,13 @@ class _StationViewState extends State<StationView> {
                       Expanded(
                         child: Text(
                           name,
-                          style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         stationStatus,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 14, color: Colors.green, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -179,22 +259,19 @@ class _StationViewState extends State<StationView> {
                           amenityIcons[amenityName] ?? Icons.help_outline,
                         );
                       },
-                      separatorBuilder: (context, index) =>
-                      const SizedBox(width: 10),
+                      separatorBuilder: (context, index) => const SizedBox(width: 10),
                     ),
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    "Chargers :",
+                    "Chargers :", 
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 2),
-                  _buildChargerCard(
-                      carChargerName, carChargerCapacity, carChargerIcon), // Updated to use capacity
-                  const SizedBox(height: 1), // Spacing between charger cards
-                  _buildChargerCard(
-                      bikeChargerName, bikeChargerCapacity, bikeChargerIcon), // Updated to use capacity
-                  const SizedBox(height: 1),
+                  const SizedBox(height: 12),
+                  _buildChargerCard(carChargerName, carChargerCapacity, carChargerIcon),
+                  const SizedBox(height: 12), 
+                  _buildChargerCard(bikeChargerName, bikeChargerCapacity, bikeChargerIcon),
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -211,15 +288,13 @@ class _StationViewState extends State<StationView> {
                   backgroundColor: Colors.grey[200],
                   foregroundColor: Colors.black87,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
                 onPressed: () {
                   debugPrint("Get direction for $name");
                 },
-                child:
-                const Text("Get direction", style: TextStyle(fontSize: 16)),
+                child: const Text("Get direction", style: TextStyle(fontSize: 16)),
               ),
             ),
             const SizedBox(width: 16),
@@ -229,20 +304,16 @@ class _StationViewState extends State<StationView> {
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
                   debugPrint("Booking a slot at $name");
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (context) => const BookingView()),
+                    MaterialPageRoute(builder: (context) => const BookingView()),
                   );
                 },
-                child: const Text("Book a slot",
-                    style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text("Book a slot", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -259,29 +330,20 @@ class _StationViewState extends State<StationView> {
         children: [
           Text(
             label,
-            style: const TextStyle(
-                fontSize: 15,
-                color: Colors.black54,
-                fontWeight: FontWeight.w500),
+            style: const TextStyle(fontSize: 15, color: Colors.black54, fontWeight: FontWeight.w500),
           ),
           const SizedBox(width: 8),
           if (isExpanded)
             Expanded(
               child: Text(
                 value,
-                style: const TextStyle(
-                    fontSize: 15,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w500),
+                style: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w500),
               ),
             )
           else
             Text(
               value,
-              style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500),
+              style: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w500),
             ),
         ],
       ),
@@ -312,7 +374,7 @@ class _StationViewState extends State<StationView> {
     );
   }
 
-  Widget _buildChargerCard(String name, String capacity, IconData iconData) { // Parameter changed from status to capacity
+  Widget _buildChargerCard(String name, String capacity, IconData iconData) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -336,12 +398,11 @@ class _StationViewState extends State<StationView> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  capacity, // Changed to display capacity
-                  style: const TextStyle(fontSize: 14, color: Colors.green), // Kept color style
+                  capacity,
+                  style: const TextStyle(fontSize: 14, color: Colors.green),
                 ),
               ],
             ),

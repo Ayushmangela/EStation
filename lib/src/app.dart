@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // Added for Google Fonts
+import 'package:google_fonts/google_fonts.dart'; 
+
+// Import appRouteObserver from main.dart using package import
+import 'package:testing/main.dart'; 
+
 import 'presentation/pages/onboarding_view.dart';
 import 'presentation/pages/login_view.dart';
 import 'presentation/pages/signup_view.dart';
@@ -17,34 +21,30 @@ class MyApp extends StatelessWidget {
       title: 'Electric Charging Station',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // Set "Plus Jakarta Sans" as the default font family
         fontFamily: 'Plus Jakarta Sans',
-        
-        // Apply "Plus Jakarta Sans" to the text themes for better integration
         textTheme: GoogleFonts.plusJakartaSansTextTheme(
           Theme.of(context).textTheme,
         ),
         primaryTextTheme: GoogleFonts.plusJakartaSansTextTheme(
           Theme.of(context).primaryTextTheme,
         ),
-        
-        primarySwatch: Colors.blue, // Keep your existing primary swatch or change as needed
-        scaffoldBackgroundColor: Colors.grey[100], // Example global scaffold background
-        
+        primarySwatch: Colors.blue, 
+        scaffoldBackgroundColor: Colors.grey[100], 
         appBarTheme: AppBarTheme(
-          // Ensure AppBar uses the global font, or define it explicitly
           titleTextStyle: GoogleFonts.plusJakartaSans(
             color: Colors.black,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
-          backgroundColor: Colors.white, // Or Colors.transparent if you prefer
+          backgroundColor: Colors.white, 
           foregroundColor: Colors.black,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.black54), // Consistent icon color for AppBars
+          iconTheme: const IconThemeData(color: Colors.black54), 
         ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
+      // Add appRouteObserver to navigatorObservers
+      navigatorObservers: [appRouteObserver],
       initialRoute: '/onboarding',
       routes: {
         '/onboarding': (context) => const OnboardingView(),

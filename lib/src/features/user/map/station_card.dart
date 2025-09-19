@@ -1,19 +1,27 @@
 import 'package:flutter/material.dart';
 
 class StationCard extends StatelessWidget {
+  final int stationId; // Added
   final String name;
   final String address;
   final VoidCallback onViewPressed;
   final VoidCallback onBookPressed;
-  final String viewLabel; // 👈 dynamic button label
+  final String viewLabel;
+  final bool isFavorite; // Added
+  final VoidCallback onFavoriteToggle; // Added
+  final bool isLoadingFavorite; // Added
 
   const StationCard({
     super.key,
+    required this.stationId, // Added
     required this.name,
     required this.address,
     required this.onViewPressed,
     required this.onBookPressed,
-    this.viewLabel = "View Station", // 👈 default
+    this.viewLabel = "View Station",
+    required this.isFavorite, // Added
+    required this.onFavoriteToggle, // Added
+    this.isLoadingFavorite = false, // Added
   });
 
   Widget _buildChargerInfoBox({
@@ -97,11 +105,23 @@ class StationCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.favorite_border, color: Colors.grey),
-                iconSize: 28,
-                onPressed: () => debugPrint("Favorite tapped for $name"),
-              ),
+              isLoadingFavorite // Updated favorite icon
+                  ? const SizedBox(
+                      width: 28, 
+                      height: 28, 
+                      child: Padding(
+                        padding: EdgeInsets.all(4.0), // Adjust padding as needed
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
+                      )
+                    )
+                  : IconButton(
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite ? Colors.red : Colors.grey,
+                      ),
+                      iconSize: 28,
+                      onPressed: onFavoriteToggle, // Use the callback
+                    ),
             ],
           ),
           // Address
@@ -155,7 +175,7 @@ class StationCard extends StatelessWidget {
                     ),
                   ),
                   onPressed: onViewPressed,
-                  child: Text(viewLabel), // 👈 dynamic
+                  child: Text(viewLabel),
                 ),
               ),
               const SizedBox(width: 12),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'profile_controller.dart'; // Import the controller
+import '../favorites/favorites_view.dart'; // Import for FavoritesView
 
 class ProfileView extends StatefulWidget {
   const ProfileView({super.key});
@@ -67,9 +68,6 @@ class _ProfileViewState extends State<ProfileView> {
     }
 
     if (_profileController.user == null) {
-      // This case might be hit briefly during logout before navigation
-      // or if fetchUserData fails and then user becomes null.
-      // The _onProfileChanged should handle navigation to /auth.
       return const Center(
         child: Text(
           "No user data available. Please try logging in again.",
@@ -122,7 +120,16 @@ class _ProfileViewState extends State<ProfileView> {
 
         // Options
         _buildSection([
-          ProfileListItem(icon: Icons.favorite, text: "Favorites", onTap: () => print("Favorites tapped")),
+          ProfileListItem(
+            icon: Icons.favorite,
+            text: "Favorites", 
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const FavoritesView()),
+              );
+            }
+          ),
           ProfileListItem(icon: Icons.directions_car, text: "My Vehicle", onTap: () => print("My Vehicle tapped")),
           ProfileListItem(icon: Icons.edit, text: "Edit Profile", onTap: () => print("Edit Profile tapped")),
         ]),
