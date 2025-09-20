@@ -1,27 +1,29 @@
 import 'package:flutter/material.dart';
 
 class StationCard extends StatelessWidget {
-  final int stationId; // Added
+  final int stationId;
   final String name;
   final String address;
+  final double? distanceKm; // Added distance
   final VoidCallback onViewPressed;
   final VoidCallback onBookPressed;
   final String viewLabel;
-  final bool isFavorite; // Added
-  final VoidCallback onFavoriteToggle; // Added
-  final bool isLoadingFavorite; // Added
+  final bool isFavorite;
+  final VoidCallback onFavoriteToggle;
+  final bool isLoadingFavorite;
 
   const StationCard({
     super.key,
-    required this.stationId, // Added
+    required this.stationId,
     required this.name,
     required this.address,
+    this.distanceKm, // Added distance
     required this.onViewPressed,
     required this.onBookPressed,
     this.viewLabel = "View Station",
-    required this.isFavorite, // Added
-    required this.onFavoriteToggle, // Added
-    this.isLoadingFavorite = false, // Added
+    required this.isFavorite,
+    required this.onFavoriteToggle,
+    this.isLoadingFavorite = false,
   });
 
   Widget _buildChargerInfoBox({
@@ -74,7 +76,9 @@ class StationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 200,
+      // Adjusted height to accommodate distance, might need further tweaking
+      // Consider removing fixed height if content varies significantly
+      height: 225, // Changed from 220 to 225
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       decoration: BoxDecoration(
@@ -105,26 +109,29 @@ class StationCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              isLoadingFavorite // Updated favorite icon
+              isLoadingFavorite
                   ? const SizedBox(
-                      width: 28, 
-                      height: 28, 
+                      width: 28,
+                      height: 28,
                       child: Padding(
-                        padding: EdgeInsets.all(4.0), // Adjust padding as needed
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
-                      )
-                    )
+                        padding: EdgeInsets.all(4.0),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.grey,
+                        ),
+                      ))
                   : IconButton(
                       icon: Icon(
                         isFavorite ? Icons.favorite : Icons.favorite_border,
                         color: isFavorite ? Colors.red : Colors.grey,
                       ),
                       iconSize: 28,
-                      onPressed: onFavoriteToggle, // Use the callback
+                      onPressed: onFavoriteToggle,
                     ),
             ],
           ),
-          // Address
+          const SizedBox(height: 4),
+          // Address Row
           Row(
             children: [
               Icon(Icons.location_on_outlined, size: 16, color: Colors.grey[700]),
@@ -139,8 +146,18 @@ class StationCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 4), // Added some space before distance
+          // Distance Text
+          Text(
+            distanceKm != null
+                ? "${distanceKm!.toStringAsFixed(2)} km away"
+                : "Distance unknown",
+            style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 8),
-          // Charger Info
+          // Charger Info Row
           Row(
             children: [
               _buildChargerInfoBox(
@@ -157,7 +174,7 @@ class StationCard extends StatelessWidget {
             ],
           ),
           const Spacer(),
-          // Buttons
+          // Buttons Row
           Row(
             children: [
               Expanded(

@@ -13,6 +13,7 @@ import 'map_controller.dart';
 import 'map_service.dart';    
 import 'station_card.dart';
 import '../station/station_view.dart';
+import '../booking/booking_view.dart'; // Added import for BookingView
 
 class UserMapView extends StatefulWidget {
   const UserMapView({super.key});
@@ -24,6 +25,7 @@ class UserMapView extends StatefulWidget {
 class _UserMapViewState extends State<UserMapView> with RouteAware {
   GoogleMapController? _mapController;
   late final MapController _mapControllerHelper;
+  final TextEditingController _searchController = TextEditingController(); // Added search controller
 
   LatLng? _currentPosition;
   String? _mapStyle;
@@ -62,6 +64,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   @override
   void dispose() {
     appRouteObserver.unsubscribe(this);
+    _searchController.dispose(); // Dispose the search controller
     super.dispose();
   }
 
@@ -72,6 +75,21 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
     super.didPopNext();
   }
   
+  // Moved from _initializeMap to be a class method
+  void onStationSelectedCallback(Map<String, dynamic> station) {
+    if (mounted) {
+      final stationId = station['station_id'] as int?;
+      if (stationId != null && _userId != null && !_stationFavoriteStatus.containsKey(stationId) && !(_stationLoadingStatus[stationId] ?? false)) {
+        _fetchFavoriteStatus(stationId);
+      }
+      setState(() {
+        _selectedStation = station;
+        _showListView = false;
+      });
+      _animateToStation(station);
+    }
+  }
+
   void _refreshVisibleFavoriteStatuses() {
     if (!mounted) return;
     if (!_showListView && _selectedStation != null) {
@@ -132,25 +150,12 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   }
 
   Future<void> _initializeMap() async {
-    await _getCurrentLocation();
+    await _getCurrentLocation(); // Ensure current location is fetched first
     if (mounted) setState(() => _isLoading = false);
     _loadMapStyle();
 
-    final StationTapCallback onStationSelectedCallback = (station) {
-      if (mounted) {
-        final stationId = station['station_id'] as int?;
-        if (stationId != null && _userId != null && !_stationFavoriteStatus.containsKey(stationId) && !(_stationLoadingStatus[stationId] ?? false)) {
-          _fetchFavoriteStatus(stationId);
-        }
-        setState(() {
-          _selectedStation = station;
-          _showListView = false;
-        });
-        _animateToStation(station);
-      }
-    };
-
-    await _mapControllerHelper.loadStations(onStationSelectedCallback);
+    // Use the class method for the callback
+    await _mapControllerHelper.loadStations(_currentPosition, onStationSelectedCallback);
 
     if (mounted) setState(() {}); 
   }
@@ -206,14 +211,10 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
             Positioned(
               bottom: 100, left: 0, right: 0,
               child: Builder(builder: (cardContext) {
-                // Capture _selectedStation for safe usage within this builder pass
                 final capturedStation = _selectedStation;
-
-                // Additional null check for safety, though outer check should suffice
                 if (capturedStation == null) {
-                  return const SizedBox.shrink(); // Return empty if it became null unexpectedly
+                  return const SizedBox.shrink(); 
                 }
-
                 final stationId = capturedStation['station_id'] as int?;
                 
                 if (stationId != null && _userId != null && !_stationFavoriteStatus.containsKey(stationId) && !(_stationLoadingStatus[stationId] ?? false)){
@@ -225,6 +226,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                   stationId: stationId ?? -1,
                   name: capturedStation['name'] ?? "Charging Station",
                   address: capturedStation['address'] ?? "No address",
+                  distanceKm: capturedStation['distance'] as double?,
                   viewLabel: "View Detail",
                   isFavorite: stationId != null ? (_stationFavoriteStatus[stationId] ?? false) : false,
                   isLoadingFavorite: stationId != null ? (_stationLoadingStatus[stationId] ?? false) : false,
@@ -234,7 +236,9 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                           const SnackBar(content: Text('Station ID missing or user not logged in.')),
                         ),
                   onViewPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StationView(station: capturedStation))),
-                  onBookPressed: () => debugPrint("Book tapped for ${capturedStation['name']}"),
+                  onBookPressed: () { 
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BookingView()));
+                  },
                 );
               }),
             ),
@@ -267,6 +271,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
           stationId: stationId ?? -1,
           name: station['name'] ?? 'Charging Station',
           address: station['address'] ?? 'No address',
+          distanceKm: station['distance'] as double?,
           viewLabel: "View Station",
           isFavorite: stationId != null ? (_stationFavoriteStatus[stationId] ?? false) : false,
           isLoadingFavorite: stationId != null ? (_stationLoadingStatus[stationId] ?? false) : false,
@@ -276,26 +281,102 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                   const SnackBar(content: Text('Station ID missing or user not logged in.')),
                 ),
           onViewPressed: () {
-            if (mounted) {
-              final sId = station['station_id'] as int?;
-              if (sId != null && _userId != null && !_stationFavoriteStatus.containsKey(sId) && !(_stationLoadingStatus[sId] ?? false)) {
-                 _fetchFavoriteStatus(sId); 
-              }
-              setState(() { 
-                _selectedStation = station; 
-                _showListView = false; 
-              });
-              WidgetsBinding.instance.addPostFrameCallback((_) { 
-                 if(mounted) _animateToStation(station); 
-              });
-            }
+            // Re-use the class method for selection logic
+            onStationSelectedCallback(station);
           },
-          onBookPressed: () => debugPrint("Book button tapped for ${station['name']}"),
+          onBookPressed: () { 
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const BookingView()));
+          },
         );
       },
     );
   }
 
-  Widget _buildSearchRow() { return Row(children: [Expanded(child: Container(padding: const EdgeInsets.symmetric(horizontal: 12),decoration: BoxDecoration(color: Colors.white,borderRadius: BorderRadius.circular(12),boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1),blurRadius: 5,)]),child: const TextField(decoration: InputDecoration(icon: Icon(Icons.search),hintText: "Search location",border: InputBorder.none,),),),),const SizedBox(width: 10),Container(height: 48,width: 48,decoration: BoxDecoration(color: Colors.green,borderRadius: BorderRadius.circular(12),),child: const Icon(Icons.tune, color: Colors.white),),]); }
+  // Updated _buildSearchRow with Autocomplete functionality
+  Widget _buildSearchRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: Autocomplete<Map<String, dynamic>>(
+            displayStringForOption: (station) => station['name'] as String,
+            optionsBuilder: (TextEditingValue textEditingValue) {
+              if (textEditingValue.text.isEmpty) {
+                return const Iterable<Map<String, dynamic>>.empty();
+              }
+              return _mapControllerHelper.stations.where((station) {
+                final String name = (station['name'] as String?)?.toLowerCase() ?? '';
+                final String address = (station['address'] as String?)?.toLowerCase() ?? '';
+                final String query = textEditingValue.text.toLowerCase();
+                return name.contains(query) || address.contains(query);
+              });
+            },
+            onSelected: (selection) {
+              FocusScope.of(context).unfocus();
+              onStationSelectedCallback(selection); // Use the class method
+            },
+            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+              // It's important to use the provided controller here, not _searchController from the state
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5),
+                  ],
+                ),
+                child: TextField(
+                  controller: controller, // Use the controller from fieldViewBuilder
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(
+                    icon: Icon(Icons.search),
+                    hintText: "Search location...",
+                    border: InputBorder.none,
+                  ),
+                ),
+              );
+            },
+            optionsViewBuilder: (context, onSelected, options) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 4.0,
+                  borderRadius: BorderRadius.circular(12),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 250), // Limit list height
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      itemCount: options.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final station = options.elementAt(index);
+                        return ListTile(
+                          title: Text(station['name'] ?? ''),
+                          subtitle: Text(station['address'] ?? ''),
+                          onTap: () {
+                            onSelected(station);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          height: 48,
+          width: 48,
+          decoration: BoxDecoration(
+            color: Colors.green,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.tune, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
   Widget _buildToggleButtons() { return Row(children: [ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: !_showListView ? Colors.green : Colors.white,foregroundColor: !_showListView ? Colors.white : Colors.black,shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12),),),onPressed: () { if (mounted) setState(() => _showListView = false); },child: const Text("Map view"),),const SizedBox(width: 8),ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: _showListView ? Colors.green : Colors.white,foregroundColor: _showListView ? Colors.white : Colors.black,shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12),),),onPressed: () { if (mounted) { setState(() { _showListView = true; _selectedStation = null; }); } },child: const Text("List view"),),]); }
 }
