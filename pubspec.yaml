@@ -74,6 +74,7 @@ flutter:
   assets:
     - assets/map_style.txt
     - assets/ # This includes all files in the assets directory
+    - lib/src/features/user/profile/asset/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

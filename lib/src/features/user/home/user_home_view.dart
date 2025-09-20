@@ -4,7 +4,8 @@ import 'package:circle_nav_bar/circle_nav_bar.dart';
 // Your views
 import '../map/map_view.dart';
 import '../charging/charging_view.dart';
-import '../battery/battery_view.dart';
+// import '../battery/battery_view.dart'; // Replaced by BookingsPage
+import '../schedule/schedules_view.dart'; // Added for BookingsPage
 import '../profile/profile_view.dart';
 
 class UserHomeView extends StatefulWidget {
@@ -20,7 +21,7 @@ class _UserHomeViewState extends State<UserHomeView> {
   final List<Widget> _pages = [
     const UserMapView(),
     const ChargingView(),
-    const BatteryView(),
+    const BookingsPage(), // This is the content from schedules_view.dart
     const ProfileView(),
   ];
 
@@ -43,11 +44,11 @@ class _UserHomeViewState extends State<UserHomeView> {
         activeIcons: const [
           Icon(Icons.map_outlined, color: Colors.white),
           Icon(Icons.ev_station, color: Colors.white),
-          Icon(Icons.battery_charging_full, color: Colors.white),
+          Icon(Icons.calendar_month_outlined, color: Colors.white),
           Icon(Icons.person_outline, color: Colors.white),
         ],
         // Labels outside circle
-        levels: const ["Map", "Charge", "Battery", "Profile"],
+        levels: const ["Map", "Charge", "Schedule", "Profile"], // Changed "Bookings" to "Schedule"
         activeLevelsStyle: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
@@ -60,7 +61,7 @@ class _UserHomeViewState extends State<UserHomeView> {
         inactiveIcons: const [
           Icon(Icons.map_outlined, color: Colors.white),
           Icon(Icons.ev_station, color: Colors.white),
-          Icon(Icons.battery_charging_full, color: Colors.white),
+          Icon(Icons.calendar_month_outlined, color: Colors.white),
           Icon(Icons.person_outline, color: Colors.white),
         ],
         padding: const EdgeInsets.only(left: 16, right: 16, bottom: 20),
