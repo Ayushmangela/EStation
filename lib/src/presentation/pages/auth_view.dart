@@ -32,72 +32,176 @@ class RPSClipper extends CustomClipper<Path> {
 }
 
 class AuthView extends StatefulWidget {
-  const AuthView({super.key});
+  final bool initialIsSignup;
+  final VoidCallback onClose;
+  final void Function(bool isSignupView) onViewModeChange;
+
+  const AuthView({
+    super.key,
+    this.initialIsSignup = false,
+    required this.onClose,
+    required this.onViewModeChange,
+  });
 
   @override
   State<AuthView> createState() => _AuthViewState();
 }
 
-class _AuthViewState extends State<AuthView> {
-  bool _isSignup = false;
+// ✅ STEP 1: Implement WidgetsBindingObserver to listen to keyboard changes
+class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
+  late bool _isSignup;
   bool _isLoading = false;
   bool _showLoginPanel = false;
 
+  // State variables for password visibility
+  bool _obscureLoginPassword = true;
+  bool _obscureSignupPassword = true;
+  bool _obscureConfirmPassword = true;
+
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController _emailController =
-  TextEditingController(); // Removed pre-filled email
-  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _loginPasswordController = TextEditingController();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
   late final AuthController _authController;
 
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _phoneFocusNode = FocusNode();
+  final FocusNode _passwordFocusNode = FocusNode();
+  final FocusNode _confirmPasswordFocusNode = FocusNode();
+  final FocusNode _loginPasswordFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
+    _isSignup = widget.initialIsSignup;
     _authController = AuthController(AuthService());
 
-    Future.delayed(const Duration(milliseconds: 300), () {
+    // ✅ STEP 2: Register the observer
+    WidgetsBinding.instance.addObserver(this);
+
+    Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
         setState(() {
           _showLoginPanel = true;
         });
       }
     });
+
+    _phoneFocusNode.addListener(_scrollToFocusedField);
+    _passwordFocusNode.addListener(_scrollToFocusedField);
+    _confirmPasswordFocusNode.addListener(_scrollToFocusedField);
+    _loginPasswordFocusNode.addListener(_scrollToFocusedField);
   }
 
   @override
   void dispose() {
+    // ✅ STEP 3: Remove the observer
+    WidgetsBinding.instance.removeObserver(this);
+
     _emailController.dispose();
+    _loginPasswordController.dispose();
     _passwordController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _phoneController.dispose();
     _confirmPasswordController.dispose();
+
+    _scrollController.dispose();
+    _phoneFocusNode.removeListener(_scrollToFocusedField);
+    _passwordFocusNode.removeListener(_scrollToFocusedField);
+    _confirmPasswordFocusNode.removeListener(_scrollToFocusedField);
+    _loginPasswordFocusNode.removeListener(_scrollToFocusedField);
+    _phoneFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    _confirmPasswordFocusNode.dispose();
+    _loginPasswordFocusNode.dispose();
+
     super.dispose();
   }
 
-  void _toggleView() {
-    setState(() {
-      _isSignup = !_isSignup;
+  // ✅ STEP 4: Add the method that gets called when the keyboard state changes
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // Use a post-frame callback to ensure the build is complete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && MediaQuery.of(context).viewInsets.bottom == 0) {
+        // If the keyboard is hidden, scroll to the top
+        _scrollController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
+  // ✅ STEP 5: Simplify the focus listener to ONLY handle scrolling into view
+  void _scrollToFocusedField() {
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (!mounted) return;
+
+      BuildContext? focusedContext;
+      if (_phoneFocusNode.hasFocus) {
+        focusedContext = _phoneFocusNode.context;
+      } else if (_passwordFocusNode.hasFocus) {
+        focusedContext = _passwordFocusNode.context;
+      } else if (_confirmPasswordFocusNode.hasFocus) {
+        focusedContext = _confirmPasswordFocusNode.context;
+      } else if (_loginPasswordFocusNode.hasFocus) {
+        focusedContext = _loginPasswordFocusNode.context;
+      }
+
+      if (focusedContext != null) {
+        Scrollable.ensureVisible(
+          focusedContext,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.05,
+        );
+      }
+      // The old "else" block that scrolled to the top is no longer needed here.
+    });
+  }
+
+  void _toggleView() {
+    _emailController.clear();
+    _loginPasswordController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+    _firstNameController.clear();
+    _lastNameController.clear();
+    _phoneController.clear();
+    FocusScope.of(context).unfocus(); // Unfocus before switching
+
+    // Reset password visibility on view toggle
+    _obscureLoginPassword = true;
+    _obscureSignupPassword = true;
+    _obscureConfirmPassword = true;
+
+    setState(() {
+      _isSignup = !_isSignup;
+    });
+    widget.onViewModeChange(_isSignup);
+  }
+
   Future<void> _handleLogin() async {
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
-
     try {
       final user = await _authController.signInWithEmailAndPassword(
         _emailController.text.trim(),
-        _passwordController.text.trim(),
+        _loginPasswordController.text.trim(),
       );
-
       if (user != null) {
+        widget.onClose();
         if (user.userMetadata?['role'] == 'admin') {
           Navigator.pushReplacement(
             context,
@@ -119,31 +223,31 @@ class _AuthViewState extends State<AuthView> {
         SnackBar(content: Text("Error: $e")),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _handleSignup() async {
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
-
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Passwords do not match")),
       );
       return;
     }
-
     setState(() => _isLoading = true);
-
     try {
-      final String fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'.trim();
+      final String fullName =
+      '''${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'''.trim();
       final user = await _authController.signUpWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-        name: fullName, // Use combined full name
+        name: fullName,
         phone: _phoneController.text.trim(),
       );
-
       if (user != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Signup successful! Please login.")),
@@ -159,52 +263,10 @@ class _AuthViewState extends State<AuthView> {
         SnackBar(content: Text("Error: $e")),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-  }
-
-  // -------------------- UI code (unchanged) --------------------
-
-  Widget _buildWelcomeScreenContent(BuildContext context) {
-    String title = _isSignup ? "Create Account" : "Login";
-
-    return Container(
-      width: double.infinity,
-      height: MediaQuery.of(context).size.height,
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 20,
-        left: 15.0,
-        right: 15.0,
-        bottom: 20.0,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-                onPressed: () {
-                  if (_isSignup) {
-                    _toggleView();
-                  } else {
-                    Navigator.pushReplacementNamed(context, '/onboarding');
-                  }
-                },
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                    color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -212,17 +274,14 @@ class _AuthViewState extends State<AuthView> {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
     final loginPanelHeight = _isSignup ? screenHeight * 0.99 : screenHeight * 0.70;
+    final double formTopPadding = loginPanelHeight * 0.25;
 
-    final double formContentTopPadding = (loginPanelHeight * 0.188) + 40.0;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF1E3923),
-      body: Stack(
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
         children: [
-          _buildWelcomeScreenContent(context),
-          _buildDecorativeCircles(context, screenHeight, screenWidth),
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 600),
             curve: Curves.easeInOutCubic,
             bottom: _showLoginPanel ? 0 : -loginPanelHeight,
             left: 0,
@@ -232,29 +291,38 @@ class _AuthViewState extends State<AuthView> {
               curve: Curves.easeInOutCubic,
               height: loginPanelHeight,
               width: screenWidth,
-              child: Stack(
-                children: [
-                  ClipPath(
-                    clipper: RPSClipper(),
-                    child: Container(color: Colors.white),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(30, formContentTopPadding, 30, 20),
-                    child: SingleChildScrollView(
-                      physics: _isSignup ? const NeverScrollableScrollPhysics() : null,
-                      child: Form(
-                        key: _formKey,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 400),
-                          transitionBuilder: (child, animation) {
-                            return FadeTransition(opacity: animation, child: child);
-                          },
-                          child: _isSignup ? _buildSignupForm() : _buildLoginForm(),
+              child: GestureDetector(
+                onTap: () => FocusScope.of(context).unfocus(),
+                child: Stack(
+                  children: [
+                    ClipPath(
+                      clipper: RPSClipper(),
+                      child: Container(color: Colors.white),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.only(
+                          top: formTopPadding,
+                          left: 30,
+                          right: 30,
+                          bottom: 20
+                      ),
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: Form(
+                          key: _formKey,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 400),
+                            transitionBuilder: (child, animation) {
+                              return FadeTransition(opacity: animation, child: child);
+                            },
+                            child: _isSignup ? _buildSignupForm() : _buildLoginForm(),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -263,12 +331,9 @@ class _AuthViewState extends State<AuthView> {
     );
   }
 
-  // -------------------- Forms (updated) --------------------
-
   Widget _buildLoginForm() {
     return Column(
       key: const ValueKey('login_form'),
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Column(
           children: [
@@ -284,9 +349,22 @@ class _AuthViewState extends State<AuthView> {
             ),
             const SizedBox(height: 20),
             TextFormField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
+              focusNode: _loginPasswordFocusNode,
+              controller: _loginPasswordController,
+              obscureText: _obscureLoginPassword, // Use state variable
+              decoration: InputDecoration( // Modified
+                labelText: 'Password',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureLoginPassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscureLoginPassword = !_obscureLoginPassword;
+                    });
+                  },
+                ),
+              ),
               validator: (value) {
                 if (value == null || value.isEmpty) return 'Please enter your password';
                 return null;
@@ -294,11 +372,13 @@ class _AuthViewState extends State<AuthView> {
             ),
             const SizedBox(height: 20),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/forgot-password');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Forgot Password clicked - implement navigation"))
+                    );
                   },
                   child: const Text('Forgot Password?',
                       style: TextStyle(color: Color(0xFF5E8B7E))),
@@ -307,13 +387,14 @@ class _AuthViewState extends State<AuthView> {
             ),
           ],
         ),
-        const SizedBox(height: 50),
+        const SizedBox(height: 30),
         _buildAuthButton(label: 'LOGIN', onPressed: _handleLogin),
         _buildFooter(
-          text: "Don\'t have an account? ",
+          text: "Don't have an account? ",
           actionText: 'SIGN UP',
           onTap: _toggleView,
         ),
+        const SizedBox(height: 250),
       ],
     );
   }
@@ -345,13 +426,14 @@ class _AuthViewState extends State<AuthView> {
           decoration: const InputDecoration(labelText: 'Email'),
           keyboardType: TextInputType.emailAddress,
           validator: (value) {
-            if (value == null || value.isEmpty) return 'Please enter your email';
+            if (value == null || value.isEmpty) return 'Please enter a valid email';
             if (!value.contains('@')) return 'Please enter a valid email';
             return null;
           },
         ),
         const SizedBox(height: 15),
         TextFormField(
+          focusNode: _phoneFocusNode,
           controller: _phoneController,
           decoration: const InputDecoration(labelText: 'Phone'),
           keyboardType: TextInputType.phone,
@@ -362,9 +444,22 @@ class _AuthViewState extends State<AuthView> {
         ),
         const SizedBox(height: 15),
         TextFormField(
+          focusNode: _passwordFocusNode,
           controller: _passwordController,
-          obscureText: true,
-          decoration: const InputDecoration(labelText: 'Password'),
+          obscureText: _obscureSignupPassword, // Use state variable
+          decoration: InputDecoration( // Modified
+            labelText: 'Password',
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureSignupPassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscureSignupPassword = !_obscureSignupPassword;
+                });
+              },
+            ),
+          ),
           validator: (value) {
             if (value == null || value.isEmpty) return 'Please enter a password';
             if (value.length < 6) return 'Password must be at least 6 characters';
@@ -373,9 +468,22 @@ class _AuthViewState extends State<AuthView> {
         ),
         const SizedBox(height: 15),
         TextFormField(
+          focusNode: _confirmPasswordFocusNode,
           controller: _confirmPasswordController,
-          obscureText: true,
-          decoration: const InputDecoration(labelText: 'Confirm Password'),
+          obscureText: _obscureConfirmPassword, // Use state variable
+          decoration: InputDecoration( // Modified
+            labelText: 'Confirm Password',
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                });
+              },
+            ),
+          ),
           validator: (value) {
             if (value == null || value.isEmpty) return 'Please confirm your password';
             if (value != _passwordController.text) return 'Passwords do not match';
@@ -389,7 +497,7 @@ class _AuthViewState extends State<AuthView> {
           actionText: 'LOG IN',
           onTap: _toggleView,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 250),
       ],
     );
   }
@@ -420,35 +528,13 @@ class _AuthViewState extends State<AuthView> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(text),
+            Text(text, style: const TextStyle(color: Colors.black54)),
             Text(actionText,
                 style: const TextStyle(
                     fontWeight: FontWeight.bold, color: Color(0xFF5E8B7E)))
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildDecorativeCircles(BuildContext context, double screenHeight, double screenWidth) {
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          Positioned(top: 100, left: -50, child: _buildCircle(100)),
-          Positioned(top: -20, right: -40, child: _buildCircle(80)),
-          Positioned(bottom: 250, right: -60, child: _buildCircle(120)),
-          Positioned(top: screenHeight * 0.5, left: screenWidth * 0.2, child: _buildCircle(60)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCircle(double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration:
-      BoxDecoration(color: Colors.white.withOpacity(0.10), shape: BoxShape.circle),
     );
   }
 }

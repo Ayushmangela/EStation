@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/onboarding_page.dart';
-import 'auth_view.dart'; // Changed path to AuthView
+import 'welcome_page.dart'; // Changed path to WelcomePage
 
 class OnboardingView extends StatefulWidget {
   const OnboardingView({super.key});
@@ -67,7 +67,7 @@ class _OnboardingViewState extends State<OnboardingView> {
 
   void _finishOnboarding() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const AuthView()), // Changed to AuthView
+      MaterialPageRoute(builder: (_) => const EnzivoWelcomeScreen()), // Changed to EnzivoWelcomeScreen
     );
   }
 

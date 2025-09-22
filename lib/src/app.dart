@@ -10,7 +10,8 @@ import 'presentation/pages/signup_view.dart';
 import 'presentation/pages/forgot_password_view.dart';
 import 'features/admin/dashboard/admin_home_view.dart';
 import 'features/user/home/user_home_view.dart';
-import 'presentation/pages/auth_view.dart'; 
+// import 'presentation/pages/auth_view.dart'; // Removed as AuthView is now part of WelcomeScreen
+import 'presentation/pages/welcome_page.dart'; // Added for EnzivoWelcomeScreen
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -48,12 +49,13 @@ class MyApp extends StatelessWidget {
       initialRoute: '/onboarding',
       routes: {
         '/onboarding': (context) => const OnboardingView(),
+        '/welcome': (context) => const EnzivoWelcomeScreen(), // Added route for WelcomeScreen
         '/login': (context) => const LoginView(),
         '/signup': (context) => const SignupView(),
         '/forgot-password': (context) => const ForgotPasswordView(),
         '/admin-home': (context) => const AdminHomeView(),
         '/user-home': (context) => const UserHomeView(),
-        '/auth': (context) => const AuthView(),
+        // '/auth': (context) => const AuthView(), // Removed route
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/onboarding' && settings.arguments != null) {
