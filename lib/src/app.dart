@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; 
+import 'package:google_fonts/google_fonts.dart';
 
 // Import appRouteObserver from main.dart using package import
-import 'package:testing/main.dart'; 
+import 'package:testing/main.dart';
 
 import 'presentation/pages/onboarding_view.dart';
-import 'presentation/pages/login_view.dart';
-import 'presentation/pages/signup_view.dart';
+
 import 'presentation/pages/forgot_password_view.dart';
 import 'features/admin/dashboard/admin_home_view.dart';
 import 'features/user/home/user_home_view.dart';
@@ -29,18 +28,18 @@ class MyApp extends StatelessWidget {
         primaryTextTheme: GoogleFonts.plusJakartaSansTextTheme(
           Theme.of(context).primaryTextTheme,
         ),
-        primarySwatch: Colors.blue, 
-        scaffoldBackgroundColor: Colors.grey[100], 
+        primarySwatch: Colors.blue,
+        scaffoldBackgroundColor: Colors.grey[100],
         appBarTheme: AppBarTheme(
           titleTextStyle: GoogleFonts.plusJakartaSans(
             color: Colors.black,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
-          backgroundColor: Colors.white, 
+          backgroundColor: Colors.white,
           foregroundColor: Colors.black,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.black54), 
+          iconTheme: const IconThemeData(color: Colors.black54),
         ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
@@ -50,8 +49,6 @@ class MyApp extends StatelessWidget {
       routes: {
         '/onboarding': (context) => const OnboardingView(),
         '/welcome': (context) => const EnzivoWelcomeScreen(), // Added route for WelcomeScreen
-        '/login': (context) => const LoginView(),
-        '/signup': (context) => const SignupView(),
         '/forgot-password': (context) => const ForgotPasswordView(),
         '/admin-home': (context) => const AdminHomeView(),
         '/user-home': (context) => const UserHomeView(),

@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../../../main.dart'; // Adjusted path for supabase client
-import '../../../presentation/pages/login_view.dart'; // Adjusted path for LoginView
 
-class AdminHomeView extends StatelessWidget { // New class name
+class AdminHomeView extends StatelessWidget {
   const AdminHomeView({super.key});
 
   Future<void> _signOut(BuildContext context) async {
     try {
       await supabase.auth.signOut();
       if (context.mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginView()), // Navigate to LoginView
-          (route) => false,
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/welcome',
+              (route) => false,
         );
       }
     } catch (e) {
@@ -48,7 +47,7 @@ class AdminHomeView extends StatelessWidget { // New class name
               const SizedBox(height: 16),
               Text('User ID: ${user.id}'),
               const SizedBox(height: 8),
-              Text('Email: ${user.email ?? "N/A"}'), // Handle potential null email
+              Text('Email: ${user.email ?? "N/A"}'),
             ],
           ],
         ),

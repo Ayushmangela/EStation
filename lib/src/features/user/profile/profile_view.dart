@@ -25,8 +25,8 @@ class _ProfileViewState extends State<ProfileView> {
         _profileController.user == null &&
         _profileController.errorMessage == null &&
         mounted) {
-      // Navigate to AuthView after logout
-      Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+      // Navigate to Welcome page after logout
+      Navigator.of(context).pushNamedAndRemoveUntil('/welcome', (route) => false);
     } else if (mounted) {
       setState(() {});
     }
