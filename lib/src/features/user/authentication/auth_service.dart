@@ -47,7 +47,7 @@ class AuthService {
         'user_type': userType,
       });
 
-      if (response.error != null) {
+      if (response != null && response.error != null) {
         throw Exception('Failed to insert user: ${response.error!.message}');
       }
     } catch (e) {

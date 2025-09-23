@@ -255,10 +255,10 @@ class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
         phone: _phoneController.text.trim(),
       );
       if (user != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Signup successful! Please login.")),
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const UserHomeView()),
+              (route) => false,
         );
-        _toggleView();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Signup failed. Try again.")),
