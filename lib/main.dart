@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/supabase_config.dart';
 import 'src/app.dart';
 
@@ -9,6 +10,9 @@ final RouteObserver<ModalRoute<void>> appRouteObserver = RouteObserver<ModalRout
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
 
   // Hide system navigation bar on app start, but allow swipe up to reveal
   await SystemChrome.setEnabledSystemUIMode(

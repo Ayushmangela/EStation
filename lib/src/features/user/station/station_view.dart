@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../booking/booking_view.dart'; // Import for BookingView
 import '../favorites/favorites_service.dart'; // Import for FavoritesService
+import 'direction_view.dart';
 
 class StationView extends StatefulWidget {
   final Map<String, dynamic> station;
@@ -292,7 +294,22 @@ class _StationViewState extends State<StationView> {
                   elevation: 0,
                 ),
                 onPressed: () {
-                  debugPrint("Get direction for $name");
+                  final stationPosition = widget.station['position'] as LatLng?;
+                  if (stationPosition != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DirectionView(
+                          stationPosition: stationPosition,
+                          stationName: name,
+                        ),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Station location not available.")),
+                    );
+                  }
                 },
                 child: const Text("Get direction", style: TextStyle(fontSize: 16)),
               ),

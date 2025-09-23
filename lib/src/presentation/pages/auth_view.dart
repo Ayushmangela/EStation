@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Your import paths
-import '../../features/admin/dashboard/admin_home_view.dart';
+import '../../features/admin/home/admin_home_view.dart'; // Corrected import path
 import '../../features/user/authentication/auth_controller.dart';
 import '../../features/user/authentication/auth_service.dart';
 import '../../features/user/home/user_home_view.dart';
@@ -203,9 +203,15 @@ class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
           if (!mounted) return;
           // SUCCESS! Navigate and exit.
           if (userType.toLowerCase().trim() == 'admin') {
-            Navigator.of(context).pushNamedAndRemoveUntil('/admin-home', (route) => false);
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const AdminHomeView()),
+                  (route) => false,
+            );
           } else {
-            Navigator.of(context).pushNamedAndRemoveUntil('/user-home', (route) => false);
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const UserHomeView()),
+                  (route) => false,
+            );
           }
           return; // IMPORTANT: Exit here to prevent setState on a disposed widget.
         } else {
