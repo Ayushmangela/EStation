@@ -1,3 +1,5 @@
+// data/models/onboarding_page.dart
+
 import 'package:flutter/material.dart';
 
 class OnboardingPage {
@@ -5,15 +7,22 @@ class OnboardingPage {
   final String description;
   final String image;
   final Color color;
-  final double imageWidth;
-  final double imageHeight;
+
+  // --- ADD THESE NEW PROPERTIES ---
+  final double? imageHeight;
+  final double? imageTop;
+  final double? imageLeft;
+  final double? imageRight;
 
   OnboardingPage({
     required this.title,
     required this.description,
     required this.image,
     required this.color,
-    this.imageWidth = 400,
-    this.imageHeight = 450,
+    // Add them to the constructor
+    this.imageHeight,
+    this.imageTop,
+    this.imageLeft,
+    this.imageRight,
   });
 }
