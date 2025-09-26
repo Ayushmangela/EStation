@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // For date formatting
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'booking_service.dart';
 
 enum VehicleType { car, bike }
 
 class BookingView extends StatefulWidget {
-  const BookingView({super.key});
+  final int stationId;
+  const BookingView({super.key, required this.stationId});
 
   @override
   State<BookingView> createState() => _BookingViewState();
@@ -14,11 +17,15 @@ class _BookingViewState extends State<BookingView> {
   DateTime _focusedDate = DateTime.now();
   DateTime? _selectedDate;
   String? _selectedTime;
-  VehicleType? _selectedVehicleType; // Changed to nullable, defaults to null
+  VehicleType? _selectedVehicleType;
 
-  final List<String> _timeSlots = [
-    "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
-    "14:00 PM", "15:00 PM", "16:00 PM", "17:00 PM"
+  late BookingService _bookingService;
+  List<String> _bookedSlots = [];
+  bool _isLoadingSlots = false;
+
+  final List<String> _allTimeSlots = [
+    "09:00:00", "10:00:00", "11:00:00", "12:00:00",
+    "14:00:00", "15:00:00", "16:00:00", "17:00:00"
   ];
 
   late DateTime _firstBookableDay;
@@ -27,10 +34,39 @@ class _BookingViewState extends State<BookingView> {
   @override
   void initState() {
     super.initState();
+    _bookingService = BookingService(Supabase.instance.client);
     final now = DateTime.now();
     _firstBookableDay = DateTime(now.year, now.month, now.day);
     _lastBookableDay = _firstBookableDay.add(const Duration(days: 9));
-    // _selectedDate = _firstBookableDay; // Don't pre-select date until vehicle is chosen
+  }
+
+  Future<void> _fetchBookedSlots() async {
+    if (_selectedVehicleType == null || _selectedDate == null) return;
+
+    setState(() {
+      _isLoadingSlots = true;
+      _bookedSlots = [];
+      _selectedTime = null;
+    });
+
+    try {
+      final slots = await _bookingService.getBookedSlots(
+        stationId: widget.stationId,
+        vehicleType: _selectedVehicleType!.name,
+        date: _selectedDate!,
+      );
+      setState(() {
+        _bookedSlots = slots.map((slot) => slot['start_time'] as String).toList();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error fetching slots: ${e.toString()}")),
+      );
+    } finally {
+      setState(() {
+        _isLoadingSlots = false;
+      });
+    }
   }
 
   void _onDaySelected(DateTime selectedDay) {
@@ -39,6 +75,7 @@ class _BookingViewState extends State<BookingView> {
       _selectedDate = selectedDay;
       _focusedDate = selectedDay;
     });
+    _fetchBookedSlots();
   }
 
   bool _isDateBookable(DateTime date) {
@@ -47,7 +84,7 @@ class _BookingViewState extends State<BookingView> {
   }
 
   void _changeMonth(int monthDelta) {
-    if (_selectedVehicleType == null) return; // Prevent month change if vehicle not selected
+    if (_selectedVehicleType == null) return;
     setState(() {
       _focusedDate = DateTime(_focusedDate.year, _focusedDate.month + monthDelta, 1);
     });
@@ -86,10 +123,11 @@ class _BookingViewState extends State<BookingView> {
         setState(() {
           _selectedVehicleType = vehicleType;
           if (_selectedDate == null) {
-             _selectedDate = _firstBookableDay;
-             _focusedDate = _firstBookableDay;
+            _selectedDate = _firstBookableDay;
+            _focusedDate = _firstBookableDay;
           }
         });
+        _fetchBookedSlots();
         debugPrint("Selected vehicle: $_selectedVehicleType");
       },
       child: Container(
@@ -138,81 +176,96 @@ class _BookingViewState extends State<BookingView> {
     final bool canConfirmBooking = isVehicleSelected && _selectedDate != null && _selectedTime != null;
 
     return Scaffold(
-        backgroundColor: Colors.grey[100],
-        appBar: AppBar(
-          title: const Text(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        title: const Text(
             "Select Vehicle & Date",
             style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 20)
-          ),
-          centerTitle: true,
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 80.0), // Added bottom padding for FAB
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "1. Choose Vehicle Type",
-                style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
-              ),
-              const SizedBox(height: 15),
-              _buildVehicleTypeSelector(),
-              const SizedBox(height: 25),
-              IgnorePointer(
-                ignoring: !isVehicleSelected,
-                child: Opacity(
-                  opacity: isVehicleSelected ? 1.0 : 0.5,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "2. Select Date",
-                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildMonthHeader(),
-                      const SizedBox(height: 15),
-                      _buildCalendarDays(),
-                      const SizedBox(height: 25),
-                      Text(
-                        "3. Choose Time",
-                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
-                      ),
-                      const SizedBox(height: 15),
-                      _buildTimeSlots(),
-                    ],
-                  ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 80.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "1. Choose Vehicle Type",
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+            ),
+            const SizedBox(height: 15),
+            _buildVehicleTypeSelector(),
+            const SizedBox(height: 25),
+            IgnorePointer(
+              ignoring: !isVehicleSelected,
+              child: Opacity(
+                opacity: isVehicleSelected ? 1.0 : 0.5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "2. Select Date",
+                      style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildMonthHeader(),
+                    const SizedBox(height: 15),
+                    _buildCalendarDays(),
+                    const SizedBox(height: 25),
+                    Text(
+                      "3. Choose Time",
+                      style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+                    ),
+                    const SizedBox(height: 15),
+                    _buildTimeSlots(),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-        floatingActionButton: FloatingActionButton.extended(
-                onPressed: canConfirmBooking 
-                    ? () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(
-                            "Booking for ${_selectedVehicleType!.name} on ${DateFormat.yMMMd().format(_selectedDate!)} at $_selectedTime",
-                          )),
-                        );
-                      }
-                    : null,
-                backgroundColor: canConfirmBooking ? Colors.green : Colors.grey.shade400,
-                icon: Icon(
-                  Icons.check,
-                  color: canConfirmBooking ? Colors.white : Colors.grey.shade700,
-                ),
-                label: Text(
-                  "Confirm Booking", 
-                  style: TextStyle(
-                    fontSize: 16, 
-                    color: canConfirmBooking ? Colors.white : Colors.grey.shade700, 
-                    fontWeight: FontWeight.w600
-                  )
-                ),
-              ),
-      );
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: canConfirmBooking
+            ? () async {
+          final userId = Supabase.instance.client.auth.currentUser?.id;
+          if (userId != null) {
+            await _bookingService.createBooking(
+              userId: userId,
+              stationId: widget.stationId,
+              vehicleType: _selectedVehicleType!.name,
+              bookingDate: _selectedDate!,
+              startTime: _selectedTime!,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(
+                "Booking confirmed for ${_selectedVehicleType!.name} on ${DateFormat.yMMMd().format(_selectedDate!)} at ${DateFormat.jm().format(DateFormat("HH:mm:ss").parse(_selectedTime!))}",
+              )),
+            );
+            Navigator.of(context).pop();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("You must be logged in to book a slot.")),
+            );
+          }
+        }
+            : null,
+        backgroundColor: canConfirmBooking ? Colors.green : Colors.grey.shade400,
+        icon: Icon(
+          Icons.check,
+          color: canConfirmBooking ? Colors.white : Colors.grey.shade700,
+        ),
+        label: Text(
+            "Confirm Booking",
+            style: TextStyle(
+                fontSize: 16,
+                color: canConfirmBooking ? Colors.white : Colors.grey.shade700,
+                fontWeight: FontWeight.w600
+            )
+        ),
+      ),
+    );
   }
 
   Widget _buildMonthHeader() {
@@ -272,29 +325,29 @@ class _BookingViewState extends State<BookingView> {
 
       if (isSelected) {
         decoration = BoxDecoration(
-          color: Colors.green.shade400,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.green.withOpacity(0.4),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            )
-          ]
+            color: Colors.green.shade400,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.withOpacity(0.4),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              )
+            ]
         );
         textStyle = const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15);
       } else if (isBookable) {
         decoration = BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isToday ? Colors.green.shade300 : Colors.grey.shade300, width: 1.2),
-          boxShadow: [
-             BoxShadow(
-              color: Colors.grey.withOpacity(0.15),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            )
-          ]
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isToday ? Colors.green.shade300 : Colors.grey.shade300, width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.15),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              )
+            ]
         );
         textStyle = TextStyle(color: isToday ? Colors.green.shade600 : Colors.black87, fontWeight: isToday ? FontWeight.bold : FontWeight.normal, fontSize: 15);
       } else {
@@ -332,7 +385,7 @@ class _BookingViewState extends State<BookingView> {
     for (int i = 0; i < dayWidgets.length; i += 7) {
       calendarRows.add(Row(children: dayWidgets.sublist(i, i + 7)));
       if (i < dayWidgets.length - 7) {
-         calendarRows.add(const SizedBox(height: 7)); 
+        calendarRows.add(const SizedBox(height: 7));
       }
     }
 
@@ -348,6 +401,10 @@ class _BookingViewState extends State<BookingView> {
   }
 
   Widget _buildTimeSlots() {
+    if (_isLoadingSlots) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -357,22 +414,24 @@ class _BookingViewState extends State<BookingView> {
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
-      itemCount: _timeSlots.length,
+      itemCount: _allTimeSlots.length,
       itemBuilder: (context, index) {
-        final time = _timeSlots[index];
+        final time = _allTimeSlots[index];
+        final isBooked = _bookedSlots.contains(time);
         final bool isSelected = _selectedTime == time;
+
         return GestureDetector(
-          onTap: (_selectedVehicleType != null) ? () {
+          onTap: !isBooked && _selectedVehicleType != null ? () {
             setState(() {
               _selectedTime = time;
             });
           } : null,
           child: Container(
             decoration: BoxDecoration(
-              color: isSelected ? Colors.green.shade400 : Colors.white,
+              color: isBooked ? Colors.grey.shade400 : (isSelected ? Colors.green.shade400 : Colors.white),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                  color: isSelected ? Colors.green.shade500 : Colors.grey.shade300, 
+                  color: isBooked ? Colors.grey.shade500 : (isSelected ? Colors.green.shade500 : Colors.grey.shade300),
                   width: 1.5
               ),
               boxShadow: isSelected ? [
@@ -382,7 +441,7 @@ class _BookingViewState extends State<BookingView> {
                   offset: const Offset(0, 2),
                 )
               ] : [
-                 BoxShadow(
+                BoxShadow(
                   color: Colors.grey.withOpacity(0.1),
                   blurRadius: 3,
                   offset: const Offset(0, 1),
@@ -391,11 +450,12 @@ class _BookingViewState extends State<BookingView> {
             ),
             child: Center(
               child: Text(
-                time,
+                DateFormat.jm().format(DateFormat("HH:mm:ss").parse(time)),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                  color: isBooked ? Colors.white : (isSelected ? Colors.white : Colors.grey.shade700),
+                  decoration: isBooked ? TextDecoration.lineThrough : TextDecoration.none,
                 ),
               ),
             ),

@@ -4,9 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../booking/booking_view.dart'; // Import for BookingView
 import '../favorites/favorites_service.dart'; // Import for FavoritesService
 import 'direction_view.dart';
+import '../../admin/station_management/manage_stations_view.dart';
 
 class StationView extends StatefulWidget {
-  final Map<String, dynamic> station;
+  final Station station;
 
   const StationView({super.key, required this.station});
 
@@ -19,7 +20,7 @@ class _StationViewState extends State<StationView> {
   bool _isLoadingFavorite = true; // To show loading initially for favorite status
   late FavoritesService _favoritesService;
   String? _userId;
-  int? _stationId;
+  late int _stationId;
 
   @override
   void initState() {
@@ -27,28 +28,24 @@ class _StationViewState extends State<StationView> {
     final supabaseClient = Supabase.instance.client;
     _favoritesService = FavoritesService(supabaseClient);
     _userId = supabaseClient.auth.currentUser?.id;
-    // Assuming station_id is directly in widget.station or nested if it comes from a join
-    _stationId = widget.station['station_id'] as int? ?? widget.station['charging_stations']?['station_id'] as int?;
-    
-    if (_userId != null && _stationId != null) {
+    _stationId = widget.station.stationId;
+
+    if (_userId != null) {
       _checkInitialFavoriteStatus();
     } else {
       setState(() {
         _isLoadingFavorite = false; // Cannot check if user or station id is null
       });
-       if (_stationId == null) {
-        print("StationView Error: station_id is null. Make sure it is passed correctly in widget.station");
-      }
     }
   }
 
   Future<void> _checkInitialFavoriteStatus() async {
-    if (_userId == null || _stationId == null) return;
+    if (_userId == null) return;
     setState(() {
       _isLoadingFavorite = true;
     });
     try {
-      final isFav = await _favoritesService.isFavorite(_userId!, _stationId!);
+      final isFav = await _favoritesService.isFavorite(_userId!, _stationId);
       if (mounted) {
         setState(() {
           _isFavorite = isFav;
@@ -71,7 +68,7 @@ class _StationViewState extends State<StationView> {
   }
 
   Future<void> _toggleFavorite() async {
-    if (_userId == null || _stationId == null || _isLoadingFavorite) return;
+    if (_userId == null || _isLoadingFavorite) return;
 
     setState(() {
       _isLoadingFavorite = true;
@@ -79,14 +76,14 @@ class _StationViewState extends State<StationView> {
 
     try {
       if (_isFavorite) {
-        await _favoritesService.removeFavorite(_userId!, _stationId!);
+        await _favoritesService.removeFavorite(_userId!, _stationId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Removed from favorites"), duration: Duration(seconds: 1)),
           );
         }
       } else {
-        await _favoritesService.addFavorite(_userId!, _stationId!);
+        await _favoritesService.addFavorite(_userId!, _stationId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Added to favorites"), duration: Duration(seconds: 1)),
@@ -116,9 +113,6 @@ class _StationViewState extends State<StationView> {
 
   @override
   Widget build(BuildContext context) {
-    final String name = widget.station['name'] ?? "Greenspeed Station";
-    final String address =
-        widget.station['address'] ?? "1901 Thornridge Cir. Shiloh, Hawaii";
     const String localImageAssetPath = "assets/ev-charging.jpg";
     const String stationStatus = "Open 24 hour";
     const String distance = "4.5 km";
@@ -207,7 +201,7 @@ class _StationViewState extends State<StationView> {
                             color: _isFavorite ? Colors.red : Colors.grey,
                           ),
                           iconSize: 26,
-                          onPressed: (_userId == null || _stationId == null) ? null : _toggleFavorite,
+                          onPressed: (_userId == null) ? null : _toggleFavorite,
                         ),
                 ),
               ),
@@ -223,7 +217,7 @@ class _StationViewState extends State<StationView> {
                     children: [
                       Expanded(
                         child: Text(
-                          name,
+                          widget.station.name,
                           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -242,7 +236,7 @@ class _StationViewState extends State<StationView> {
                   const SizedBox(height: 16),
                   _buildInfoRow("Cost :", cost),
                   _buildInfoRow("Parking :", parking),
-                  _buildInfoRow("Address :", address, isExpanded: true),
+                  _buildInfoRow("Address :", widget.station.address, isExpanded: true),
                   const SizedBox(height: 24),
                   const Text(
                     "Amenities :",
@@ -270,9 +264,11 @@ class _StationViewState extends State<StationView> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  _buildChargerCard(carChargerName, carChargerCapacity, carChargerIcon),
+                  if (widget.station.hasCarCharger)
+                    _buildChargerCard(carChargerName, carChargerCapacity, carChargerIcon),
                   const SizedBox(height: 12), 
-                  _buildChargerCard(bikeChargerName, bikeChargerCapacity, bikeChargerIcon),
+                  if (widget.station.hasBikeCharger)
+                    _buildChargerCard(bikeChargerName, bikeChargerCapacity, bikeChargerIcon),
                   const SizedBox(height: 30),
                 ],
               ),
@@ -294,22 +290,15 @@ class _StationViewState extends State<StationView> {
                   elevation: 0,
                 ),
                 onPressed: () {
-                  final stationPosition = widget.station['position'] as LatLng?;
-                  if (stationPosition != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DirectionView(
-                          stationPosition: stationPosition,
-                          stationName: name,
-                        ),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DirectionView(
+                        stationPosition: LatLng(widget.station.latitude, widget.station.longitude),
+                        stationName: widget.station.name,
                       ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Station location not available.")),
-                    );
-                  }
+                    ),
+                  );
                 },
                 child: const Text("Get direction", style: TextStyle(fontSize: 16)),
               ),
@@ -324,10 +313,10 @@ class _StationViewState extends State<StationView> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
-                  debugPrint("Booking a slot at $name");
+                  debugPrint("Booking a slot at ${widget.station.name}");
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const BookingView()),
+                    MaterialPageRoute(builder: (context) => BookingView(stationId: widget.station.stationId)),
                   );
                 },
                 child: const Text("Book a slot", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),

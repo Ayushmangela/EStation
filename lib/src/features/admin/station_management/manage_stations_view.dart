@@ -1,25 +1,51 @@
 import 'package:flutter/material.dart';
-import 'dart:math'; // Used for generating a random ID
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:testing/src/presentation/pages/auth_view.dart';
+import 'admin_station_service.dart';
 
 // --- Data Model ---
 class Station {
-  final String id;
+  final int stationId;
   final String name;
   final String address;
-  final String status;
   final double latitude;
   final double longitude;
-  final List<String> chargers;
+  final String? operator;
+  final bool hasBikeCharger;
+  final bool hasCarCharger;
+  final String status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   Station({
-    required this.id,
+    required this.stationId,
     required this.name,
     required this.address,
-    required this.status,
     required this.latitude,
     required this.longitude,
-    required this.chargers,
+    this.operator,
+    required this.hasBikeCharger,
+    required this.hasCarCharger,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
   });
+
+  factory Station.fromMap(Map<String, dynamic> map) {
+    return Station(
+      stationId: map['station_id'] as int,
+      name: map['name'] as String,
+      address: map['address'] as String,
+      latitude: (map['latitude'] as num).toDouble(),
+      longitude: (map['longitude'] as num).toDouble(),
+      operator: map['operator'] as String?,
+      hasBikeCharger: map['has_bike_charger'] as bool,
+      hasCarCharger: map['has_car_charger'] as bool,
+      status: map['status'] as String,
+      createdAt: DateTime.parse(map['created_at'] as String),
+      updatedAt: DateTime.parse(map['updated_at'] as String),
+    );
+  }
 }
 
 // Enum to manage which view is currently shown on the dashboard
@@ -35,57 +61,66 @@ class ManageStationsView extends StatefulWidget {
 
 class _ManageStationsViewState extends State<ManageStationsView> {
   AdminView _currentView = AdminView.manage;
+  late final AdminStationService _adminStationService;
+  Future<List<Station>>? _stationsFuture;
 
-  // Static list of stations for demo purposes
-  final List<Station> _stations = [
-    Station(
-      id: 'stn_001',
-      name: 'GreenCharge Hub Mumbai',
-      address: 'BKC, Bandra East, Mumbai, Maharashtra 400051',
-      status: 'Available',
-      latitude: 19.0669,
-      longitude: 72.8683,
-      chargers: ['Car Charger', 'Bike Charger'],
-    ),
-    Station(
-      id: 'stn_002',
-      name: 'PowerUp Andheri',
-      address: 'Lokhandwala Complex, Andheri West, Mumbai',
-      status: 'Available',
-      latitude: 19.1333,
-      longitude: 72.8273,
-      chargers: ['Car Charger'],
-    ),
-    Station(
-      id: 'stn_003',
-      name: 'EV Point South Bombay',
-      address: 'Near Gateway of India, Colaba, Mumbai',
-      status: 'Offline',
-      latitude: 18.9220,
-      longitude: 72.8347,
-      chargers: ['Bike Charger'],
-    ),
-  ];
-
-  // Callback function to add a new station to the list
-  void _addStation(Station station) {
-    setState(() {
-      _stations.add(station);
-      _currentView = AdminView.manage; // Switch back to the manage view
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${station.name} has been added.'),
-        backgroundColor: Colors.green,
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _adminStationService = AdminStationService(Supabase.instance.client);
+    _stationsFuture = _fetchStations();
   }
 
-  // --- Helper function to get theme-aware status colors ---
+  Future<List<Station>> _fetchStations() async {
+    final response = await Supabase.instance.client.from('charging_stations').select();
+    return (response as List).map((map) => Station.fromMap(map)).toList();
+  }
+
+  void _addStation(
+    String name,
+    String address,
+    double latitude,
+    double longitude,
+    String? operator,
+    bool hasBikeCharger,
+    bool hasCarCharger,
+    String status,
+  ) async {
+    try {
+      await _adminStationService.addStation(
+        name: name,
+        address: address,
+        latitude: latitude,
+        longitude: longitude,
+        operator: operator,
+        hasBikeCharger: hasBikeCharger,
+        hasCarCharger: hasCarCharger,
+        status: status,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$name has been added.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      setState(() {
+        _stationsFuture = _fetchStations();
+        _currentView = AdminView.manage;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error adding station: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Color _getStatusColor(BuildContext context, String status) {
     final isLight = Theme.of(context).brightness == Brightness.light;
     switch (status) {
-      case 'Available':
+      case 'available':
         return isLight ? Colors.green.shade700 : Colors.greenAccent;
       default: // Offline
         return isLight ? Colors.red.shade700 : Colors.redAccent;
@@ -101,7 +136,16 @@ class _ManageStationsViewState extends State<ManageStationsView> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
-            onPressed: () {},
+            onPressed: () async {
+              await Supabase.instance.client.auth.signOut();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => AuthView(
+                  onClose: () {},
+                  onViewModeChange: (bool isSignup) {},
+                )),
+                    (route) => false,
+              );
+            },
           ),
         ],
       ),
@@ -125,7 +169,6 @@ class _ManageStationsViewState extends State<ManageStationsView> {
     );
   }
 
-  // --- Widgets ---
   Widget _buildSegmentedControl() {
     return Container(
       decoration: BoxDecoration(
@@ -197,12 +240,28 @@ class _ManageStationsViewState extends State<ManageStationsView> {
   }
 
   Widget _buildManageView() {
-    return ListView.builder(
-      key: const ValueKey('manage_list'),
-      itemCount: _stations.length,
-      itemBuilder: (context, index) {
-        final station = _stations[index];
-        return _buildStationListItem(station);
+    return FutureBuilder<List<Station>>(
+      future: _stationsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('No stations found.'));
+        }
+
+        final stations = snapshot.data!;
+        return ListView.builder(
+          key: const ValueKey('manage_list'),
+          itemCount: stations.length,
+          itemBuilder: (context, index) {
+            final station = stations[index];
+            return _buildStationListItem(station);
+          },
+        );
       },
     );
   }
@@ -211,15 +270,15 @@ class _ManageStationsViewState extends State<ManageStationsView> {
     final statusColor = _getStatusColor(context, station.status);
     final theme = Theme.of(context);
     final IconData statusIcon =
-    station.status == 'Available' ? Icons.check_circle : Icons.cancel;
+    station.status == 'available' ? Icons.check_circle : Icons.cancel;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (context) => StationDetailView(station: station),
-          ));
+          // Navigator.of(context).push(MaterialPageRoute(
+          //   builder: (context) => StationDetailView(station: station),
+          // ));
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -259,8 +318,6 @@ class _ManageStationsViewState extends State<ManageStationsView> {
     );
   }
 
-  /// ✅ UPDATED: The build method for the add view now returns a dedicated
-  /// stateful widget for the form, passing the `_addStation` callback.
   Widget _buildAddView() {
     return _AddStationForm(
       key: const ValueKey('add_form'),
@@ -269,10 +326,17 @@ class _ManageStationsViewState extends State<ManageStationsView> {
   }
 }
 
-
-/// ✅ NEW: A dedicated stateful widget to manage the "Add Station" form.
 class _AddStationForm extends StatefulWidget {
-  final Function(Station) onAddStation;
+  final Function(
+    String name,
+    String address,
+    double latitude,
+    double longitude,
+    String? operator,
+    bool hasBikeCharger,
+    bool hasCarCharger,
+    String status,
+  ) onAddStation;
 
   const _AddStationForm({super.key, required this.onAddStation});
 
@@ -283,16 +347,15 @@ class _AddStationForm extends StatefulWidget {
 class _AddStationFormState extends State<_AddStationForm> {
   final _formKey = GlobalKey<FormState>();
 
-  // Text editing controllers
   late final TextEditingController _nameController;
   late final TextEditingController _addressController;
   late final TextEditingController _latitudeController;
   late final TextEditingController _longitudeController;
+  late final TextEditingController _operatorController;
 
-  // Form state variables
   String? _selectedStatus;
-  final List<String> _allChargerTypes = ['Car Charger', 'Bike Charger'];
-  final Set<String> _selectedChargers = {};
+  bool _hasBikeCharger = false;
+  bool _hasCarCharger = false;
 
   @override
   void initState() {
@@ -301,6 +364,7 @@ class _AddStationFormState extends State<_AddStationForm> {
     _addressController = TextEditingController();
     _latitudeController = TextEditingController();
     _longitudeController = TextEditingController();
+    _operatorController = TextEditingController();
   }
 
   @override
@@ -309,14 +373,13 @@ class _AddStationFormState extends State<_AddStationForm> {
     _addressController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
+    _operatorController.dispose();
     super.dispose();
   }
 
   void _submitForm() {
-    // Validate all form fields
     if (_formKey.currentState!.validate()) {
-      if (_selectedChargers.isEmpty) {
-        // Show an error if no charger type is selected
+      if (!_hasBikeCharger && !_hasCarCharger) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please select at least one charger type.'),
@@ -326,19 +389,16 @@ class _AddStationFormState extends State<_AddStationForm> {
         return;
       }
 
-      // Create a new Station object from the form data
-      final newStation = Station(
-        id: 'stn_${Random().nextInt(1000)}', // Generate a random ID for demo
-        name: _nameController.text,
-        address: _addressController.text,
-        status: _selectedStatus!,
-        latitude: double.parse(_latitudeController.text),
-        longitude: double.parse(_longitudeController.text),
-        chargers: _selectedChargers.toList(),
+      widget.onAddStation(
+        _nameController.text,
+        _addressController.text,
+        double.parse(_latitudeController.text),
+        double.parse(_longitudeController.text),
+        _operatorController.text,
+        _hasBikeCharger,
+        _hasCarCharger,
+        _selectedStatus!,
       );
-
-      // Use the callback to pass the new station to the parent widget
-      widget.onAddStation(newStation);
     }
   }
 
@@ -350,7 +410,6 @@ class _AddStationFormState extends State<_AddStationForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Basic Info Section ---
             _buildSectionTitle('Basic Information'),
             Card(
               child: Padding(
@@ -375,13 +434,20 @@ class _AddStationFormState extends State<_AddStationForm> {
                           ? 'Please enter an address'
                           : null,
                     ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _operatorController,
+                      decoration: const InputDecoration(labelText: 'Operator'),
+                      validator: (value) => value == null || value.isEmpty
+                          ? 'Please enter an operator'
+                          : null,
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
 
-            // --- Location Section ---
             _buildSectionTitle('Location (Coordinates)'),
             Card(
               child: Padding(
@@ -429,7 +495,6 @@ class _AddStationFormState extends State<_AddStationForm> {
             ),
             const SizedBox(height: 24),
 
-            // --- Station Properties Section ---
             _buildSectionTitle('Station Properties'),
             Card(
               child: Padding(
@@ -441,7 +506,7 @@ class _AddStationFormState extends State<_AddStationForm> {
                     DropdownButtonFormField<String>(
                       value: _selectedStatus,
                       decoration: const InputDecoration(labelText: 'Status'),
-                      items: ['Available', 'Offline']
+                      items: ['available', 'offline']
                           .map((status) => DropdownMenuItem(
                         value: status,
                         child: Text(status),
@@ -461,24 +526,28 @@ class _AddStationFormState extends State<_AddStationForm> {
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8.0,
-                      children: _allChargerTypes.map((charger) {
-                        final isSelected = _selectedChargers.contains(charger);
-                        return FilterChip(
-                          label: Text(charger),
-                          selected: isSelected,
-                          onSelected: (selected) {
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _hasBikeCharger,
+                          onChanged: (value) {
                             setState(() {
-                              if (selected) {
-                                _selectedChargers.add(charger);
-                              } else {
-                                _selectedChargers.remove(charger);
-                              }
+                              _hasBikeCharger = value!;
                             });
                           },
-                        );
-                      }).toList(),
+                        ),
+                        const Text('Bike Charger'),
+                        const SizedBox(width: 16),
+                        Checkbox(
+                          value: _hasCarCharger,
+                          onChanged: (value) {
+                            setState(() {
+                              _hasCarCharger = value!;
+                            });
+                          },
+                        ),
+                        const Text('Car Charger'),
+                      ],
                     )
                   ],
                 ),
@@ -496,13 +565,13 @@ class _AddStationFormState extends State<_AddStationForm> {
                 ),
               ),
             ),
+            const SizedBox(height: 80), // Added padding at the bottom
           ],
         ),
       ),
     );
   }
 
-  // Helper for section titles, similar to StationDetailView
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -511,161 +580,6 @@ class _AddStationFormState extends State<_AddStationForm> {
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-}
-
-// --- Station Detail Screen ---
-class StationDetailView extends StatelessWidget {
-  final Station station;
-
-  const StationDetailView({super.key, required this.station});
-
-  Color _getStatusColor(BuildContext context, String status) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
-    switch (status) {
-      case 'Available':
-        return isLight ? Colors.green.shade700 : Colors.greenAccent;
-      default: // Offline
-        return isLight ? Colors.red.shade700 : Colors.redAccent;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(station.name),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      station.name,
-                      style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.location_on_outlined,
-                            size: 16, color: theme.textTheme.bodySmall?.color),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            station.address,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildSectionTitle(context, 'Station Details'),
-            Card(
-              child: Column(
-                children: [
-                  _buildDetailRow(
-                      context, Icons.power, 'Status', station.status,
-                      valueColor: _getStatusColor(context, station.status)),
-                  _buildDetailRow(context, Icons.map_outlined, 'Coordinates',
-                      '${station.latitude}, ${station.longitude}'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildSectionTitle(context, 'Charger Types'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Wrap(
-                  spacing: 12.0,
-                  runSpacing: 12.0,
-                  children: (station.chargers ?? [])
-                      .map((type) => Chip(
-                    avatar: CircleAvatar(
-                        backgroundColor: theme.colorScheme.primary,
-                        child: Icon(
-                            type == 'Car Charger'
-                                ? Icons.directions_car
-                                : Icons.two_wheeler,
-                            size: 16,
-                            color: theme.colorScheme.onPrimary)),
-                    label: Text(
-                      type,
-                    ),
-                  ))
-                      .toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Card(
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  Container(
-                    height: 150,
-                    color: Colors.grey[300],
-                    child: Center(
-                      child: Icon(Icons.map,
-                          size: 50, color: Colors.grey[600]),
-                    ),
-                  ),
-                  ListTile(
-                    title: const Text('Location on Map'),
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {},
-                  )
-                ],
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(
-      BuildContext context, IconData icon, String label, String value,
-      {Color? valueColor}) {
-    final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(icon, color: theme.textTheme.bodySmall?.color),
-      title: Text(label),
-      trailing: Text(
-        value,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-          color: valueColor ?? theme.textTheme.bodyLarge?.color,
         ),
       ),
     );

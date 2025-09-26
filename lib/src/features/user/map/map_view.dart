@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Corrected import to use package notation
 import 'package:testing/main.dart';
 
+import '../../admin/station_management/manage_stations_view.dart';
 import '../favorites/favorites_service.dart';
 import 'map_controller.dart';
 import 'map_service.dart';
@@ -305,15 +306,36 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                         content: Text(
                             'Station ID missing or user not logged in.')),
                   ),
-                  onViewPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => StationView(station: capturedStation))),
-                  onBookPressed: () {
+                  onViewPressed: () {
+                    final station = Station(
+                      stationId: capturedStation['station_id'] as int,
+                      name: capturedStation['name'] as String,
+                      address: capturedStation['address'] as String,
+                      latitude: (capturedStation['latitude'] as num).toDouble(),
+                      longitude: (capturedStation['longitude'] as num).toDouble(),
+                      operator: capturedStation['operator'] as String?,
+                      hasBikeCharger: capturedStation['has_bike_charger'] as bool,
+                      hasCarCharger: capturedStation['has_car_charger'] as bool,
+                      status: capturedStation['status'] as String,
+                      createdAt: DateTime.parse(capturedStation['created_at'] as String),
+                      updatedAt: DateTime.parse(capturedStation['updated_at'] as String),
+                    );
                     Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const BookingView()));
+                            builder: (_) => StationView(station: station)));
+                  },
+                  onBookPressed: () {
+                    if (stationId != null) {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => BookingView(stationId: stationId)));
+                    } else {
+                      ScaffoldMessenger.of(cardContext).showSnackBar(
+                        const SnackBar(content: Text('Station ID is not available.')),
+                      );
+                    }
                   },
                 );
               }),
@@ -372,8 +394,14 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
             onStationSelectedCallback(station);
           },
           onBookPressed: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (_) => const BookingView()));
+            if (stationId != null) {
+              Navigator.push(
+                  context, MaterialPageRoute(builder: (_) => BookingView(stationId: stationId)));
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Station ID is not available.')),
+              );
+            }
           },
         );
       },

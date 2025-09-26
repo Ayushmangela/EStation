@@ -1,9 +1,25 @@
-import './booking_service.dart';
+import 'package:flutter/material.dart';
+import 'booking_service.dart';
 
-class UserBookingController {
-  final UserBookingService _bookingService;
+class BookingController {
+  final BookingService _bookingService;
 
-  UserBookingController(this._bookingService);
+  BookingController(this._bookingService);
 
-  // TODO: Implement user booking logic
+  Future<List<Map<String, dynamic>>> getBookedSlots({
+    required int stationId,
+    required String vehicleType,
+    required DateTime date,
+  }) async {
+    try {
+      return await _bookingService.getBookedSlots(
+        stationId: stationId,
+        vehicleType: vehicleType,
+        date: date,
+      );
+    } catch (e) {
+      debugPrint('Error in BookingController: $e');
+      rethrow;
+    }
+  }
 }

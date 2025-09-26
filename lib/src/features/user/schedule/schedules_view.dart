@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:testing/main.dart';
+import '../booking/booking_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -7,7 +10,6 @@ void main() {
 
 enum BookingFilter { active, upcoming, past }
 
-// Add VehicleType enum
 enum VehicleType { car, bike }
 
 class MyApp extends StatelessWidget {
@@ -48,6 +50,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const BookingsPage(),
+      navigatorObservers: [appRouteObserver],
     );
   }
 }
@@ -61,7 +64,7 @@ class Booking {
   final BookingStatus status;
   final double totalCost;
   final double energyConsumed;
-  final VehicleType vehicleType; // Added vehicleType
+  final VehicleType vehicleType;
 
   Booking({
     required this.id,
@@ -70,10 +73,62 @@ class Booking {
     required this.startTime,
     required this.endTime,
     required this.status,
-    required this.vehicleType, // Added to constructor
+    required this.vehicleType,
     this.totalCost = 0.0,
     this.energyConsumed = 0.0,
   });
+
+  static Booking? fromMap(Map<String, dynamic> map) {
+    try {
+      final station = map['charging_stations'];
+      final statusString = map['booking_status'] as String;
+      BookingStatus status;
+      switch (statusString) {
+        case 'active':
+          status = BookingStatus.active;
+          break;
+        case 'future':
+          status = BookingStatus.upcoming;
+          break;
+        case 'completed':
+          status = BookingStatus.completed;
+          break;
+        case 'failed':
+          status = BookingStatus.canceled;
+          break;
+        default:
+          status = BookingStatus.canceled;
+      }
+
+      DateTime? startTime;
+      if (map['booking_date'] != null && map['start_time'] != null) {
+        startTime = DateTime.parse('${map['booking_date']} ${map['start_time']}');
+      }
+
+      DateTime? endTime;
+      if (map['booking_date'] != null && map['end_time'] != null) {
+        endTime = DateTime.parse('${map['booking_date']} ${map['end_time']}');
+      }
+
+      if (startTime == null) {
+        return null;
+      }
+
+      return Booking(
+        id: map['booking_id'].toString(),
+        stationName: station?['name'] ?? 'Unknown Station',
+        address: station?['address'] ?? 'No address',
+        startTime: startTime,
+        endTime: endTime ?? startTime.add(const Duration(hours: 1)), // Default to 1 hour if end time is null
+        status: status,
+        vehicleType: (map['vehicle_type'] as String) == 'car' ? VehicleType.car : VehicleType.bike,
+      );
+    } catch (e) {
+      print("Error parsing booking data: $e");
+      print("Problematic data: $map");
+      return null;
+    }
+  }
 }
 
 enum BookingStatus { active, upcoming, completed, canceled }
@@ -85,69 +140,61 @@ class BookingsPage extends StatefulWidget {
   State<BookingsPage> createState() => _BookingsPageState();
 }
 
-class _BookingsPageState extends State<BookingsPage> {
+class _BookingsPageState extends State<BookingsPage> with RouteAware {
   BookingFilter _selectedFilter = BookingFilter.active;
+  late final BookingService _bookingService;
+  late final String? _userId;
+  Future<List<Booking>>? _bookingsFuture;
 
-  final List<Booking> _allBookings = [
-    Booking(
-      id: '1',
-      stationName: 'Jio-bp Pulse - BKC',
-      address: 'Bandra Kurla Complex, Mumbai',
-      startTime: DateTime.now().subtract(const Duration(minutes: 15)),
-      endTime: DateTime.now().add(const Duration(minutes: 45)),
-      status: BookingStatus.active,
-      vehicleType: VehicleType.car, // Added vehicle type
-      energyConsumed: 8.5,
-      totalCost: 127.50,
-    ),
-    Booking(
-      id: '2',
-      stationName: 'ChargeGrid - Phoenix Mall',
-      address: 'Lower Parel, Mumbai',
-      startTime: DateTime.now().add(const Duration(hours: 3)),
-      endTime: DateTime.now().add(const Duration(hours: 4)),
-      status: BookingStatus.upcoming,
-      vehicleType: VehicleType.bike, // Added vehicle type
-    ),
-    Booking(
-      id: '3',
-      stationName: 'Tata Power EZ Charge',
-      address: 'Viviana Mall, Thane',
-      startTime: DateTime.now().add(const Duration(days: 1, hours: 5)),
-      endTime: DateTime.now().add(const Duration(days: 1, hours: 6)),
-      status: BookingStatus.upcoming,
-      vehicleType: VehicleType.car, // Added vehicle type
-    ),
-    Booking(
-      id: '4',
-      stationName: 'Statiq Charging Station',
-      address: 'Seawoods Grand Central, Navi Mumbai',
-      startTime: DateTime.now().subtract(const Duration(days: 2)),
-      endTime: DateTime.now().subtract(const Duration(days: 2, hours: -1)),
-      status: BookingStatus.completed,
-      vehicleType: VehicleType.bike, // Added vehicle type
-      totalCost: 250.00,
-      energyConsumed: 12.5,
-    ),
-    Booking(
-      id: '5',
-      stationName: 'ChargeGrid - Phoenix Mall',
-      address: 'Lower Parel, Mumbai',
-      startTime: DateTime.now().subtract(const Duration(days: 5)),
-      endTime: DateTime.now().subtract(const Duration(days: 5, hours: -1)),
-      status: BookingStatus.canceled,
-      vehicleType: VehicleType.car, // Added vehicle type
-    ),
-  ];
-
-  late List<Booking> _activeBookings;
-  late List<Booking> _upcomingBookings;
-  late List<Booking> _pastBookings;
+  List<Booking> _allBookings = [];
+  List<Booking> _activeBookings = [];
+  List<Booking> _upcomingBookings = [];
+  List<Booking> _pastBookings = [];
 
   @override
   void initState() {
     super.initState();
+    _bookingService = BookingService(Supabase.instance.client);
+    _userId = Supabase.instance.client.auth.currentUser?.id;
+    if (_userId != null) {
+      _bookingsFuture = _fetchUserBookings();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final modalRoute = ModalRoute.of(context);
+    if (modalRoute is PageRoute) {
+      appRouteObserver.subscribe(this, modalRoute);
+    }
+  }
+
+  @override
+  void dispose() {
+    appRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    // This method is called when the user navigates back to this page.
+    // We re-fetch the bookings to ensure the list is up-to-date.
+    if (mounted) {
+      setState(() {
+        _bookingsFuture = _fetchUserBookings();
+      });
+    }
+    super.didPopNext();
+  }
+
+  Future<List<Booking>> _fetchUserBookings() async {
+    final bookingsData = await _bookingService.getUserBookings(_userId!);
+    final bookings = bookingsData.map((map) => Booking.fromMap(map)).where((b) => b != null).cast<Booking>().toList();
+    // No need to call setState here as the FutureBuilder will handle the state update
+    _allBookings = bookings;
     _filterBookings();
+    return bookings;
   }
 
   void _filterBookings() {
@@ -249,20 +296,45 @@ class _BookingsPageState extends State<BookingsPage> {
       appBar: AppBar(
         title: const Text("My Bookings"),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16.0, top: 16.0, bottom: 8.0),
-            child: Text(
-              "Recent",
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: _userId == null
+          ? const Center(child: Text('Please log in to see your bookings.'))
+          : FutureBuilder<List<Booking>>(
+              future: _bookingsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return EmptyStateWidget(
+                    icon: Icons.event_busy,
+                    message: "You have no bookings yet.",
+                    buttonText: "Book a Slot",
+                  );
+                }
+
+                // We need to filter the bookings based on the snapshot data
+                _allBookings = snapshot.data!;
+                _filterBookings();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16.0, top: 16.0, bottom: 8.0),
+                      child: Text(
+                        "Recent",
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ),
+                    _buildFilterChips(),
+                    Expanded(child: _buildFilteredBookingsList()),
+                  ],
+                );
+              },
             ),
-          ),
-          _buildFilterChips(),
-          Expanded(child: _buildFilteredBookingsList()),
-        ],
-      ),
     );
   }
 }
