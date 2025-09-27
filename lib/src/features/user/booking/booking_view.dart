@@ -23,10 +23,7 @@ class _BookingViewState extends State<BookingView> {
   List<String> _bookedSlots = [];
   bool _isLoadingSlots = false;
 
-  final List<String> _allTimeSlots = [
-    "09:00:00", "10:00:00", "11:00:00", "12:00:00",
-    "14:00:00", "15:00:00", "16:00:00", "17:00:00"
-  ];
+  final List<String> _allTimeSlots = List.generate(24, (index) => '${index.toString().padLeft(2, '0')}:00:00');
 
   late DateTime _firstBookableDay;
   late DateTime _lastBookableDay;
@@ -405,6 +402,23 @@ class _BookingViewState extends State<BookingView> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final selectedDay = _selectedDate != null ? DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day) : null;
+
+    final bool isToday = selectedDay != null && selectedDay.isAtSameMomentAs(today);
+
+    List<String> timeSlots = _allTimeSlots.where((time) {
+      if (!isToday) {
+        return true;
+      }
+      final timeParts = time.split(':');
+      final hour = int.parse(timeParts[0]);
+      final minute = int.parse(timeParts[1]);
+      final slotTime = DateTime(now.year, now.month, now.day, hour, minute);
+      return slotTime.isAfter(now);
+    }).toList();
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -414,9 +428,9 @@ class _BookingViewState extends State<BookingView> {
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
-      itemCount: _allTimeSlots.length,
+      itemCount: timeSlots.length,
       itemBuilder: (context, index) {
-        final time = _allTimeSlots[index];
+        final time = timeSlots[index];
         final isBooked = _bookedSlots.contains(time);
         final bool isSelected = _selectedTime == time;
 

@@ -51,7 +51,7 @@ class BookingService {
     try {
       final response = await _supabase
           .from('user_bookings')
-          .select('*, charging_stations(name, address)')
+          .select('*, charging_stations(name, address, latitude, longitude)')
           .eq('user_id', userId)
           .order('booking_date', ascending: false)
           .order('start_time', ascending: false);
@@ -59,6 +59,33 @@ class BookingService {
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print('Error fetching user bookings: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateBookingStatus(String bookingId, String status) async {
+    try {
+      await _supabase
+          .from('user_bookings')
+          .update({'booking_status': status})
+          .eq('booking_id', bookingId);
+    } catch (e) {
+      print('Error updating booking status: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateBookingDateTime(String bookingId, DateTime date, String time) async {
+    try {
+      await _supabase
+          .from('user_bookings')
+          .update({
+            'booking_date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+            'start_time': time,
+          })
+          .eq('booking_id', bookingId);
+    } catch (e) {
+      print('Error updating booking date and time: $e');
       rethrow;
     }
   }

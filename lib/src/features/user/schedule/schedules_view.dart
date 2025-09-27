@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:testing/main.dart';
 import '../booking/booking_service.dart';
+import 'booking_detail_view.dart';
 
 void main() {
   runApp(const MyApp());
@@ -57,8 +59,10 @@ class MyApp extends StatelessWidget {
 
 class Booking {
   final String id;
+  final int stationId;
   final String stationName;
   final String address;
+  final LatLng stationPosition;
   final DateTime startTime;
   final DateTime endTime;
   final BookingStatus status;
@@ -68,8 +72,10 @@ class Booking {
 
   Booking({
     required this.id,
+    required this.stationId,
     required this.stationName,
     required this.address,
+    required this.stationPosition,
     required this.startTime,
     required this.endTime,
     required this.status,
@@ -77,6 +83,17 @@ class Booking {
     this.totalCost = 0.0,
     this.energyConsumed = 0.0,
   });
+
+  BookingStatus get displayStatus {
+    final now = DateTime.now();
+    if (status == BookingStatus.upcoming && now.isAfter(startTime) && now.isBefore(endTime)) {
+      return BookingStatus.active;
+    }
+    if ((status == BookingStatus.active || status == BookingStatus.upcoming) && endTime.isBefore(now)) {
+      return BookingStatus.completed;
+    }
+    return status;
+  }
 
   static Booking? fromMap(Map<String, dynamic> map) {
     try {
@@ -108,18 +125,22 @@ class Booking {
       DateTime? endTime;
       if (map['booking_date'] != null && map['end_time'] != null) {
         endTime = DateTime.parse('${map['booking_date']} ${map['end_time']}');
+      } else if (startTime != null) {
+        endTime = startTime.add(const Duration(hours: 1));
       }
 
-      if (startTime == null) {
+      if (startTime == null || endTime == null) {
         return null;
       }
 
       return Booking(
         id: map['booking_id'].toString(),
+        stationId: map['station_id'] as int,
         stationName: station?['name'] ?? 'Unknown Station',
         address: station?['address'] ?? 'No address',
+        stationPosition: LatLng(station['latitude'], station['longitude']),
         startTime: startTime,
-        endTime: endTime ?? startTime.add(const Duration(hours: 1)), // Default to 1 hour if end time is null
+        endTime: endTime,
         status: status,
         vehicleType: (map['vehicle_type'] as String) == 'car' ? VehicleType.car : VehicleType.bike,
       );
@@ -178,8 +199,6 @@ class _BookingsPageState extends State<BookingsPage> with RouteAware {
 
   @override
   void didPopNext() {
-    // This method is called when the user navigates back to this page.
-    // We re-fetch the bookings to ensure the list is up-to-date.
     if (mounted) {
       setState(() {
         _bookingsFuture = _fetchUserBookings();
@@ -191,7 +210,6 @@ class _BookingsPageState extends State<BookingsPage> with RouteAware {
   Future<List<Booking>> _fetchUserBookings() async {
     final bookingsData = await _bookingService.getUserBookings(_userId!);
     final bookings = bookingsData.map((map) => Booking.fromMap(map)).where((b) => b != null).cast<Booking>().toList();
-    // No need to call setState here as the FutureBuilder will handle the state update
     _allBookings = bookings;
     _filterBookings();
     return bookings;
@@ -199,13 +217,13 @@ class _BookingsPageState extends State<BookingsPage> with RouteAware {
 
   void _filterBookings() {
     _activeBookings =
-        _allBookings.where((b) => b.status == BookingStatus.active).toList();
+        _allBookings.where((b) => b.displayStatus == BookingStatus.active).toList();
     _upcomingBookings =
-        _allBookings.where((b) => b.status == BookingStatus.upcoming).toList();
+        _allBookings.where((b) => b.displayStatus == BookingStatus.upcoming).toList();
     _pastBookings = _allBookings
         .where((b) =>
-            b.status == BookingStatus.completed ||
-            b.status == BookingStatus.canceled)
+            b.displayStatus == BookingStatus.completed ||
+            b.displayStatus == BookingStatus.canceled)
         .toList();
 
     _upcomingBookings.sort((a, b) => a.startTime.compareTo(b.startTime));
@@ -254,7 +272,7 @@ class _BookingsPageState extends State<BookingsPage> with RouteAware {
   Widget _buildFilteredBookingsList() {
     List<Booking> bookingsToDisplay;
     String emptyMessage;
-    IconData emptyIcon; // Still used for EmptyStateWidget
+    IconData emptyIcon;
 
     switch (_selectedFilter) {
       case BookingFilter.active:
@@ -282,7 +300,7 @@ class _BookingsPageState extends State<BookingsPage> with RouteAware {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.only(top: 8.0, bottom: 80.0),
       itemCount: bookingsToDisplay.length,
       itemBuilder: (context, index) {
         return BookingListItem(booking: bookingsToDisplay[index]);
@@ -315,7 +333,6 @@ class _BookingsPageState extends State<BookingsPage> with RouteAware {
                   );
                 }
 
-                // We need to filter the bookings based on the snapshot data
                 _allBookings = snapshot.data!;
                 _filterBookings();
 
@@ -348,17 +365,16 @@ class BookingListItem extends StatelessWidget {
     String imagePath;
     switch (booking.vehicleType) {
       case VehicleType.car:
-        imagePath = 'lib/src/features/user/profile/asset/E-car.png'; // Updated path
+        imagePath = 'lib/src/features/user/profile/asset/E-car.png';
         break;
       case VehicleType.bike:
-        imagePath = 'lib/src/features/user/profile/asset/e-bike.png'; // Updated path
+        imagePath = 'lib/src/features/user/profile/asset/e-bike.png';
         break;
     }
 
-    // Icon for status is still relevant for context, can be overlaid or used elsewhere if design changes
     IconData statusIcon;
     Color statusIconColor;
-    switch (booking.status) {
+    switch (booking.displayStatus) {
       case BookingStatus.active:
         statusIcon = Icons.bolt;
         statusIconColor = Colors.orange;
@@ -392,13 +408,12 @@ class BookingListItem extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(4.0), // Add padding if images are too large
+            padding: const EdgeInsets.all(4.0),
             child: Image.asset(
               imagePath,
-              fit: BoxFit.contain, // Or BoxFit.cover, depending on image aspect ratio
+              fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) {
-                // Fallback for missing images
-                print("Error loading image: $error at $imagePath"); // For debugging
+                print("Error loading image: $error at $imagePath");
                 return Icon(Icons.directions_car, color: Colors.grey[700], size: 28);
               },
             ),
@@ -422,7 +437,7 @@ class BookingListItem extends StatelessWidget {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(statusIcon, color: statusIconColor, size: 14), // Status icon next to date
+                  Icon(statusIcon, color: statusIconColor, size: 14),
                   const SizedBox(width: 4),
                   Text(
                     DateFormat('dd-MM-yyyy | hh:mm a').format(booking.startTime),
@@ -435,7 +450,12 @@ class BookingListItem extends StatelessWidget {
         ),
         trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
         onTap: () {
-          // TODO: Handle item tap, e.g., navigate to booking details
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => BookingDetailView(booking: booking),
+            ),
+          );
         },
       ),
     );

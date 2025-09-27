@@ -1,24 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // Assuming you use Provider for state management
+import 'package:provider/provider.dart';
+import 'package:testing/src/features/admin/station_management/manage_stations_view.dart';
+import 'package:testing/src/features/user/station/station_view.dart';
 import 'favorites_controller.dart';
-import 'favorites_service.dart'; // For direct service access if needed, or through controller
-import 'package:supabase_flutter/supabase_flutter.dart'; // For Supabase client instance
-
-// Placeholder for your Station model - replace with your actual model
-// class Station {
-//   final int id;
-//   final String name;
-//   final String address;
-//   // Add other relevant fields
-//   Station({required this.id, required this.name, required this.address});
-// }
+import 'favorites_service.dart'; 
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FavoritesView extends StatelessWidget {
   const FavoritesView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Assuming you have a way to get the current user ID, e.g., from Supabase auth
     final userId = Supabase.instance.client.auth.currentUser?.id;
 
     if (userId == null) {
@@ -28,10 +20,6 @@ class FavoritesView extends StatelessWidget {
       );
     }
 
-    // You'll need to provide FavoritesService and FavoritesController
-    // For example, using Provider:
-    // Make sure FavoritesService is provided higher up in the widget tree
-    // Or create an instance directly if not using a sophisticated state management / DI solution yet.
     final supabaseClient = Supabase.instance.client;
     final favoritesService = FavoritesService(supabaseClient);
 
@@ -94,12 +82,11 @@ class FavoritesView extends StatelessWidget {
     return ListView.builder(
       itemCount: controller.favoriteStations.length,
       itemBuilder: (context, index) {
-        // Assuming your station data is in a Map<String, dynamic>
-        // Adjust if you have a specific Station model
         final station = controller.favoriteStations[index];
-        final stationName = station['charging_stations']?['name'] ?? station['name'] ?? 'Unknown Station';
-        final stationAddress = station['charging_stations']?['address'] ?? station['address'] ?? 'No address';
-        final stationId = station['charging_stations']?['station_id'] ?? station['station_id'];
+        final stationData = station['charging_stations'];
+        final stationName = stationData?['name'] ?? 'Unknown Station';
+        final stationAddress = stationData?['address'] ?? 'No address';
+        final stationId = stationData?['station_id'];
 
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -110,10 +97,9 @@ class FavoritesView extends StatelessWidget {
             title: Text(stationName, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(stationAddress, style: const TextStyle(color: Colors.grey)),
             trailing: IconButton(
-              icon: const Icon(Icons.favorite, color: Colors.red), // Always favorited in this list
+              icon: const Icon(Icons.favorite, color: Colors.red),
               onPressed: () {
                 if (stationId != null) {
-                   // Show a confirmation dialog before removing
                   showDialog(
                     context: context,
                     builder: (BuildContext dialogContext) {
@@ -124,13 +110,13 @@ class FavoritesView extends StatelessWidget {
                           TextButton(
                             child: const Text('Cancel'),
                             onPressed: () {
-                              Navigator.of(dialogContext).pop(); 
+                              Navigator.of(dialogContext).pop();
                             },
                           ),
                           TextButton(
                             child: const Text('Remove', style: TextStyle(color: Colors.red)),
                             onPressed: () {
-                              Navigator.of(dialogContext).pop(); 
+                              Navigator.of(dialogContext).pop();
                               controller.removeFromFavorites(stationId);
                             },
                           ),
@@ -142,9 +128,37 @@ class FavoritesView extends StatelessWidget {
               },
             ),
             onTap: () {
-              // Optional: Navigate to station details view if you have one
-              // Navigator.push(context, MaterialPageRoute(builder: (context) => StationView(station: station['charging_stations'] ?? station)));
-              print('Tapped on favorite station: $stationName');
+              if (stationData != null && stationData is Map<String, dynamic>) {
+                try {
+                  final stationObject = Station(
+                    stationId: stationData['station_id'] as int,
+                    name: stationData['name'] as String,
+                    address: stationData['address'] as String,
+                    latitude: (stationData['latitude'] as num).toDouble(),
+                    longitude: (stationData['longitude'] as num).toDouble(),
+                    operator: stationData['operator'] as String?,
+                    hasBikeCharger: stationData['has_bike_charger'] as bool,
+                    hasCarCharger: stationData['has_car_charger'] as bool,
+                    status: stationData['status'] as String,
+                    createdAt: DateTime.parse(stationData['created_at'] as String),
+                    updatedAt: DateTime.parse(stationData['updated_at'] as String),
+                  );
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => StationView(station: stationObject),
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not open station details: $e')),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Could not open station details: data is missing.')),
+                );
+              }
             },
           ),
         );

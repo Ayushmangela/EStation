@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'profile_controller.dart'; // Import the controller
 import '../favorites/favorites_view.dart'; // Import for FavoritesView
+import '../customer_care/customer_care_view.dart'; // Import for CustomerCareView
 
 class ProfileView extends StatefulWidget {
   const ProfileView({super.key});
@@ -156,6 +157,16 @@ class _ProfileViewState extends State<ProfileView> {
             icon: Icons.directions_car,
             text: "My Vehicle",
             onTap: () => print("My Vehicle tapped"),
+          ),
+          ProfileListItem(
+            icon: Icons.headset_mic,
+            text: "Customer Care",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CustomerCareView()),
+              );
+            },
           ),
           ProfileListItem(
             icon: Icons.edit,

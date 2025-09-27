@@ -221,137 +221,141 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Stack(
-        children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-                target: _currentPosition ?? const LatLng(19.0760, 72.8777),
-                zoom: _currentPosition != null ? 16 : 12),
-            onMapCreated: (GoogleMapController controller) async {
-              _mapController = controller;
-              if (_mapStyle != null) {
-                try {
-                  await controller.setMapStyle(_mapStyle);
-                } catch (e) {
-                  debugPrint("Error setting map style: $e");
-                }
-              }
-            },
-            markers: _mapControllerHelper.markers,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            zoomControlsEnabled: false,
-            compassEnabled: true,
-            onTap: (_) {
-              if (mounted) setState(() => _selectedStation = null);
-            },
-          ),
-
-          // ## UI ENHANCEMENT: GRADIENT SCRIM ##
-          // This gradient makes the UI at the top more readable against any map style.
-          IgnorePointer(
-            child: Container(
-              height: 160.0,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Theme.of(context).scaffoldBackgroundColor,
-                    Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                  ],
-                  stops: const [0.2, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          if (_showListView)
-            Container(color: Colors.white, child: _buildListView()),
-          if (!_showListView && _selectedStation != null)
-            Positioned(
-              bottom: 100,
-              left: 0,
-              right: 0,
-              child: Builder(builder: (cardContext) {
-                final capturedStation = _selectedStation;
-                if (capturedStation == null) {
-                  return const SizedBox.shrink();
-                }
-                final stationId = capturedStation['station_id'] as int?;
-
-                if (stationId != null &&
-                    _userId != null &&
-                    !_stationFavoriteStatus.containsKey(stationId) &&
-                    !(_stationLoadingStatus[stationId] ?? false)) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) _fetchFavoriteStatus(stationId);
-                  });
-                }
-                return StationCard(
-                  stationId: stationId ?? -1,
-                  name: capturedStation['name'] ?? "Charging Station",
-                  address: capturedStation['address'] ?? "No address",
-                  distanceKm: capturedStation['distance'] as double?,
-                  viewLabel: "View Detail",
-                  isFavorite: stationId != null
-                      ? (_stationFavoriteStatus[stationId] ?? false)
-                      : false,
-                  isLoadingFavorite: stationId != null
-                      ? (_stationLoadingStatus[stationId] ?? false)
-                      : false,
-                  onFavoriteToggle: stationId != null
-                      ? () => _toggleFavorite(stationId)
-                      : () => ScaffoldMessenger.of(cardContext).showSnackBar(
-                    const SnackBar(
-                        content: Text(
-                            'Station ID missing or user not logged in.')),
+              children: [
+                // Layer 1: Background (Map or List View)
+                if (_showListView)
+                  Container(color: Colors.white, child: _buildListView())
+                else
+                  GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                        target: _currentPosition ?? const LatLng(19.0760, 72.8777),
+                        zoom: _currentPosition != null ? 16 : 12),
+                    onMapCreated: (GoogleMapController controller) async {
+                      _mapController = controller;
+                      if (_mapStyle != null) {
+                        try {
+                          await controller.setMapStyle(_mapStyle);
+                        } catch (e) {
+                          debugPrint("Error setting map style: $e");
+                        }
+                      }
+                    },
+                    markers: _mapControllerHelper.markers,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                    zoomControlsEnabled: false,
+                    compassEnabled: true,
+                    onTap: (_) {
+                      if (mounted) setState(() => _selectedStation = null);
+                    },
                   ),
-                  onViewPressed: () {
-                    final station = Station(
-                      stationId: capturedStation['station_id'] as int,
-                      name: capturedStation['name'] as String,
-                      address: capturedStation['address'] as String,
-                      latitude: (capturedStation['latitude'] as num).toDouble(),
-                      longitude: (capturedStation['longitude'] as num).toDouble(),
-                      operator: capturedStation['operator'] as String?,
-                      hasBikeCharger: capturedStation['has_bike_charger'] as bool,
-                      hasCarCharger: capturedStation['has_car_charger'] as bool,
-                      status: capturedStation['status'] as String,
-                      createdAt: DateTime.parse(capturedStation['created_at'] as String),
-                      updatedAt: DateTime.parse(capturedStation['updated_at'] as String),
-                    );
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => StationView(station: station)));
-                  },
-                  onBookPressed: () {
-                    if (stationId != null) {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => BookingView(stationId: stationId)));
-                    } else {
-                      ScaffoldMessenger.of(cardContext).showSnackBar(
-                        const SnackBar(content: Text('Station ID is not available.')),
+
+                // Layer 2: Gradient on top of background
+                IgnorePointer(
+                  child: Container(
+                    height: 160.0,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Theme.of(context).scaffoldBackgroundColor,
+                          Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                        ],
+                        stops: const [0.2, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Layer 3: Conditional UI on top of gradient
+                if (!_showListView && _selectedStation != null)
+                  Positioned(
+                    bottom: 100,
+                    left: 0,
+                    right: 0,
+                    child: Builder(builder: (cardContext) {
+                      final capturedStation = _selectedStation;
+                      if (capturedStation == null) {
+                        return const SizedBox.shrink();
+                      }
+                      final stationId = capturedStation['station_id'] as int?;
+
+                      if (stationId != null &&
+                          _userId != null &&
+                          !_stationFavoriteStatus.containsKey(stationId) &&
+                          !(_stationLoadingStatus[stationId] ?? false)) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _fetchFavoriteStatus(stationId);
+                        });
+                      }
+                      return StationCard(
+                        stationId: stationId ?? -1,
+                        name: capturedStation['name'] ?? "Charging Station",
+                        address: capturedStation['address'] ?? "No address",
+                        distanceKm: capturedStation['distance'] as double?,
+                        viewLabel: "View Detail",
+                        isFavorite: stationId != null
+                            ? (_stationFavoriteStatus[stationId] ?? false)
+                            : false,
+                        isLoadingFavorite: stationId != null
+                            ? (_stationLoadingStatus[stationId] ?? false)
+                            : false,
+                        onFavoriteToggle: stationId != null
+                            ? () => _toggleFavorite(stationId)
+                            : () => ScaffoldMessenger.of(cardContext).showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          'Station ID missing or user not logged in.')),
+                                ),
+                        onViewPressed: () {
+                          final station = Station(
+                            stationId: capturedStation['station_id'] as int,
+                            name: capturedStation['name'] as String,
+                            address: capturedStation['address'] as String,
+                            latitude: (capturedStation['latitude'] as num).toDouble(),
+                            longitude: (capturedStation['longitude'] as num).toDouble(),
+                            operator: capturedStation['operator'] as String?,
+                            hasBikeCharger: capturedStation['has_bike_charger'] as bool,
+                            hasCarCharger: capturedStation['has_car_charger'] as bool,
+                            status: capturedStation['status'] as String,
+                            createdAt: DateTime.parse(capturedStation['created_at'] as String),
+                            updatedAt: DateTime.parse(capturedStation['updated_at'] as String),
+                          );
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => StationView(station: station)));
+                        },
+                        onBookPressed: () {
+                          if (stationId != null) {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => BookingView(stationId: stationId)));
+                          } else {
+                            ScaffoldMessenger.of(cardContext).showSnackBar(
+                              const SnackBar(content: Text('Station ID is not available.')),
+                            );
+                          }
+                        },
                       );
-                    }
-                  },
-                );
-              }),
+                    }),
+                  ),
+
+                // Layer 4: Topmost UI
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(children: [
+                      _buildSearchRow(),
+                      const SizedBox(height: 12),
+                      _buildToggleButtons()
+                    ]),
+                  ),
+                ),
+              ],
             ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(children: [
-                _buildSearchRow(),
-                const SizedBox(height: 12),
-                _buildToggleButtons()
-              ]),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -361,7 +365,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
       return const Center(child: Text("Loading stations or no stations available..."));
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 120, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 120, 16, 100),
       itemCount: stations.length,
       itemBuilder: (context, index) {
         final station = stations[index];
@@ -381,15 +385,15 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
           distanceKm: station['distance'] as double?,
           viewLabel: "View Station",
           isFavorite:
-          stationId != null ? (_stationFavoriteStatus[stationId] ?? false) : false,
+              stationId != null ? (_stationFavoriteStatus[stationId] ?? false) : false,
           isLoadingFavorite:
-          stationId != null ? (_stationLoadingStatus[stationId] ?? false) : false,
+              stationId != null ? (_stationLoadingStatus[stationId] ?? false) : false,
           onFavoriteToggle: stationId != null
               ? () => _toggleFavorite(stationId)
               : () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Station ID missing or user not logged in.')),
-          ),
+                    const SnackBar(
+                        content: Text('Station ID missing or user not logged in.')),
+                  ),
           onViewPressed: () {
             onStationSelectedCallback(station);
           },
@@ -445,9 +449,9 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
                     suffixIcon: textEditingController.text.isNotEmpty
                         ? IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.grey),
-                      onPressed: () => textEditingController.clear(),
-                    )
+                            icon: const Icon(Icons.clear, color: Colors.grey),
+                            onPressed: () => textEditingController.clear(),
+                          )
                         : null,
                     hintText: "Search by name or address...",
                     hintStyle: const TextStyle(color: Colors.grey),
@@ -491,7 +495,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       itemCount: options.length,
                       separatorBuilder: (_, __) =>
-                      const Divider(height: 1, indent: 72, endIndent: 16),
+                          const Divider(height: 1, indent: 72, endIndent: 16),
                       itemBuilder: (BuildContext context, int index) {
                         final station = options.elementAt(index);
                         final distance = station['distance'] as double?;
@@ -503,17 +507,17 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                           ),
                           title: Text(station['name'] ?? 'Unknown Station',
                               style:
-                              const TextStyle(fontWeight: FontWeight.w600)),
+                                  const TextStyle(fontWeight: FontWeight.w600)),
                           subtitle: Text(
                               station['address'] ?? 'No address available',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
                           trailing: distance != null
                               ? Text(
-                            '${distance.toStringAsFixed(1)} km',
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 12),
-                          )
+                                  '${distance.toStringAsFixed(1)} km',
+                                  style: const TextStyle(
+                                      color: Colors.grey, fontSize: 12),
+                                )
                               : null,
                           onTap: () => onSelected(station),
                         );

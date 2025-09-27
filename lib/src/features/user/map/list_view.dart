@@ -1,6 +1,4 @@
-//list_view
 import 'package:flutter/material.dart';
-
 
 class StationCard extends StatelessWidget {
   final String name;
@@ -10,6 +8,7 @@ class StationCard extends StatelessWidget {
   final String status;
   final VoidCallback onViewPressed;
   final VoidCallback onBookPressed;
+  final bool isLast;
 
   const StationCard({
     super.key,
@@ -20,6 +19,7 @@ class StationCard extends StatelessWidget {
     this.status = "Unknown",
     required this.onViewPressed,
     required this.onBookPressed,
+    this.isLast = false,
   });
 
   @override
@@ -29,7 +29,7 @@ class StationCard extends StatelessWidget {
     return GestureDetector(
       onTap: onViewPressed,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        margin: EdgeInsets.fromLTRB(16, 10, 16, isLast ? 100.0 : 10.0),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
