@@ -136,7 +136,6 @@ class FavoritesView extends StatelessWidget {
                     address: stationData['address'] as String,
                     latitude: (stationData['latitude'] as num).toDouble(),
                     longitude: (stationData['longitude'] as num).toDouble(),
-                    operator: stationData['operator'] as String?,
                     hasBikeCharger: stationData['has_bike_charger'] as bool,
                     hasCarCharger: stationData['has_car_charger'] as bool,
                     status: stationData['status'] as String,

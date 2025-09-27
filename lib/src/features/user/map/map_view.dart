@@ -17,7 +17,8 @@ import '../station/station_view.dart';
 import '../booking/booking_view.dart'; // Added import for BookingView
 
 class UserMapView extends StatefulWidget {
-  const UserMapView({super.key});
+  final bool isAdmin; // Added isAdmin parameter
+  const UserMapView({super.key, this.isAdmin = false}); // Default to false
 
   @override
   State<UserMapView> createState() => _UserMapViewState();
@@ -79,6 +80,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
       final stationId = station['station_id'] as int?;
       if (stationId != null &&
           _userId != null &&
+          !widget.isAdmin && // Admins don't have favorites
           !_stationFavoriteStatus.containsKey(stationId) &&
           !(_stationLoadingStatus[stationId] ?? false)) {
         _fetchFavoriteStatus(stationId);
@@ -92,7 +94,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   }
 
   void _refreshVisibleFavoriteStatuses() {
-    if (!mounted) return;
+    if (!mounted || widget.isAdmin) return; // Admins don't have favorites
     if (!_showListView && _selectedStation != null) {
       final stationId = _selectedStation!['station_id'] as int?;
       if (stationId != null) {
@@ -109,7 +111,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   }
 
   Future<void> _fetchFavoriteStatus(int stationId) async {
-    if (_userId == null || (_stationLoadingStatus[stationId] ?? false)) return;
+    if (_userId == null || (_stationLoadingStatus[stationId] ?? false) || widget.isAdmin) return;
     if (mounted) setState(() => _stationLoadingStatus[stationId] = true);
     try {
       final isFav = await _favoritesService.isFavorite(_userId!, stationId);
@@ -126,7 +128,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   }
 
   Future<void> _toggleFavorite(int stationId) async {
-    if (_userId == null || (_stationLoadingStatus[stationId] ?? false)) {
+    if (_userId == null || (_stationLoadingStatus[stationId] ?? false) || widget.isAdmin) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login or station ID missing/loading.')));
       return;
@@ -283,6 +285,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
 
                       if (stationId != null &&
                           _userId != null &&
+                          !widget.isAdmin && // Admins don't have favorites
                           !_stationFavoriteStatus.containsKey(stationId) &&
                           !(_stationLoadingStatus[stationId] ?? false)) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -315,17 +318,20 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                             address: capturedStation['address'] as String,
                             latitude: (capturedStation['latitude'] as num).toDouble(),
                             longitude: (capturedStation['longitude'] as num).toDouble(),
-                            operator: capturedStation['operator'] as String?,
-                            hasBikeCharger: capturedStation['has_bike_charger'] as bool,
-                            hasCarCharger: capturedStation['has_car_charger'] as bool,
-                            status: capturedStation['status'] as String,
+                            // operator: capturedStation['operator'] as String?, // Removed operator
+                            hasBikeCharger: capturedStation['has_bike_charger'] as bool? ?? false,
+                            hasCarCharger: capturedStation['has_car_charger'] as bool? ?? false,
+                            status: capturedStation['status'] as String? ?? 'unknown',
                             createdAt: DateTime.parse(capturedStation['created_at'] as String),
                             updatedAt: DateTime.parse(capturedStation['updated_at'] as String),
                           );
                           Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) => StationView(station: station)));
+                                  builder: (_) => StationView(
+                                    station: station,
+                                    isAdmin: widget.isAdmin, // Pass isAdmin here
+                                  )));
                         },
                         onBookPressed: () {
                           if (stationId != null) {
@@ -339,6 +345,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                             );
                           }
                         },
+                        isAdmin: widget.isAdmin,
                       );
                     }),
                   ),
@@ -372,6 +379,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
         final stationId = station['station_id'] as int?;
         if (stationId != null &&
             _userId != null &&
+            !widget.isAdmin && // Admins don't have favorites
             !_stationFavoriteStatus.containsKey(stationId) &&
             !(_stationLoadingStatus[stationId] ?? false)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -395,7 +403,30 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                         content: Text('Station ID missing or user not logged in.')),
                   ),
           onViewPressed: () {
-            onStationSelectedCallback(station);
+            // For direct navigation from list (if desired in future):
+            /*
+            final detailedStation = Station(
+              stationId: station['station_id'] as int,
+              name: station['name'] as String,
+              address: station['address'] as String,
+              latitude: (station['latitude'] as num).toDouble(),
+              longitude: (station['longitude'] as num).toDouble(),
+              // operator: station['operator'] as String?, // Removed operator
+              hasBikeCharger: station['has_bike_charger'] as bool? ?? false,
+              hasCarCharger: station['has_car_charger'] as bool? ?? false,
+              status: station['status'] as String? ?? 'unknown',
+              createdAt: DateTime.parse(station['created_at'] as String),
+              updatedAt: DateTime.parse(station['updated_at'] as String),
+            );
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => StationView(
+                          station: detailedStation,
+                          isAdmin: widget.isAdmin, // Pass isAdmin here
+                        )));
+            */
+            onStationSelectedCallback(station); // This will show the card on map view if not already
           },
           onBookPressed: () {
             if (stationId != null) {
@@ -407,6 +438,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
               );
             }
           },
+          isAdmin: widget.isAdmin,
         );
       },
     );

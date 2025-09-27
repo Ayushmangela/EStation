@@ -16,7 +16,7 @@ class _AdminHomeViewState extends State<AdminHomeView> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const UserMapView(),
+    const UserMapView(isAdmin: true), // Pass isAdmin: true
     const ManageStationsView(),
   ];
 

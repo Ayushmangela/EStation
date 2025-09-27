@@ -11,6 +11,7 @@ class StationCard extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback onFavoriteToggle;
   final bool isLoadingFavorite;
+  final bool isAdmin; // Added isAdmin parameter
 
   const StationCard({
     super.key,
@@ -24,6 +25,7 @@ class StationCard extends StatelessWidget {
     required this.isFavorite,
     required this.onFavoriteToggle,
     this.isLoadingFavorite = false,
+    this.isAdmin = false, // Default to false
   });
 
   Widget _buildChargerInfoBox({
@@ -109,25 +111,26 @@ class StationCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              isLoadingFavorite
-                  ? const SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: Padding(
-                        padding: EdgeInsets.all(4.0),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.grey,
+              if (!isAdmin) // Conditionally show favorite button
+                isLoadingFavorite
+                    ? const SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Padding(
+                          padding: EdgeInsets.all(4.0),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.grey,
+                          ),
+                        ))
+                    : IconButton(
+                        icon: Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          color: isFavorite ? Colors.red : Colors.grey,
                         ),
-                      ))
-                  : IconButton(
-                      icon: Icon(
-                        isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: isFavorite ? Colors.red : Colors.grey,
+                        iconSize: 28,
+                        onPressed: onFavoriteToggle,
                       ),
-                      iconSize: 28,
-                      onPressed: onFavoriteToggle,
-                    ),
             ],
           ),
           const SizedBox(height: 4),
@@ -195,25 +198,27 @@ class StationCard extends StatelessWidget {
                   child: Text(viewLabel),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+              if (!isAdmin) ...[ // Conditionally show booking button
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    textStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    onPressed: onBookPressed,
+                    child: const Text("Book Charger"),
                   ),
-                  onPressed: onBookPressed,
-                  child: const Text("Book Charger"),
                 ),
-              ),
+              ],
             ],
           )
         ],

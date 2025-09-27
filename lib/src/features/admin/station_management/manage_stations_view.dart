@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:testing/src/presentation/pages/auth_view.dart';
 import 'admin_station_service.dart';
+import 'add_station_form.dart'; // Import the new form
 
 // --- Data Model ---
 class Station {
@@ -10,7 +11,6 @@ class Station {
   final String address;
   final double latitude;
   final double longitude;
-  final String? operator;
   final bool hasBikeCharger;
   final bool hasCarCharger;
   final String status;
@@ -23,7 +23,6 @@ class Station {
     required this.address,
     required this.latitude,
     required this.longitude,
-    this.operator,
     required this.hasBikeCharger,
     required this.hasCarCharger,
     required this.status,
@@ -38,20 +37,17 @@ class Station {
       address: map['address'] as String,
       latitude: (map['latitude'] as num).toDouble(),
       longitude: (map['longitude'] as num).toDouble(),
-      operator: map['operator'] as String?,
-      hasBikeCharger: map['has_bike_charger'] as bool,
-      hasCarCharger: map['has_car_charger'] as bool,
-      status: map['status'] as String,
+      hasBikeCharger: map['has_bike_charger'] as bool? ?? false,
+      hasCarCharger: map['has_car_charger'] as bool? ?? false,
+      status: map['status'] as String? ?? 'unknown',
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );
   }
 }
 
-// Enum to manage which view is currently shown on the dashboard
-enum AdminView { manage, add }
+enum AdminView { manage, add, edit }
 
-// --- Main Dashboard Widget ---
 class ManageStationsView extends StatefulWidget {
   const ManageStationsView({super.key});
 
@@ -63,523 +59,418 @@ class _ManageStationsViewState extends State<ManageStationsView> {
   AdminView _currentView = AdminView.manage;
   late final AdminStationService _adminStationService;
   Future<List<Station>>? _stationsFuture;
+  Station? _editingStation;
+
+  late TextEditingController _searchController;
+  String _searchTerm = '';
 
   @override
   void initState() {
     super.initState();
     _adminStationService = AdminStationService(Supabase.instance.client);
     _stationsFuture = _fetchStations();
-  }
-
-  Future<List<Station>> _fetchStations() async {
-    final response = await Supabase.instance.client.from('charging_stations').select();
-    return (response as List).map((map) => Station.fromMap(map)).toList();
-  }
-
-  void _addStation(
-    String name,
-    String address,
-    double latitude,
-    double longitude,
-    String? operator,
-    bool hasBikeCharger,
-    bool hasCarCharger,
-    String status,
-  ) async {
-    try {
-      await _adminStationService.addStation(
-        name: name,
-        address: address,
-        latitude: latitude,
-        longitude: longitude,
-        operator: operator,
-        hasBikeCharger: hasBikeCharger,
-        hasCarCharger: hasCarCharger,
-        status: status,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$name has been added.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      setState(() {
-        _stationsFuture = _fetchStations();
-        _currentView = AdminView.manage;
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error adding station: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Color _getStatusColor(BuildContext context, String status) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
-    switch (status) {
-      case 'available':
-        return isLight ? Colors.green.shade700 : Colors.greenAccent;
-      default: // Offline
-        return isLight ? Colors.red.shade700 : Colors.redAccent;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: () async {
-              await Supabase.instance.client.auth.signOut();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => AuthView(
-                  onClose: () {},
-                  onViewModeChange: (bool isSignup) {},
-                )),
-                    (route) => false,
-              );
-            },
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            _buildSegmentedControl(),
-            const SizedBox(height: 20),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: _currentView == AdminView.manage
-                    ? _buildManageView()
-                    : _buildAddView(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSegmentedControl() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.light
-            ? Colors.grey.shade200
-            : Theme.of(context).colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildSegmentButton(
-              'Manage Stations',
-              AdminView.manage,
-              Icons.ev_station,
-            ),
-          ),
-          Expanded(
-            child: _buildSegmentButton(
-              'Add New Station',
-              AdminView.add,
-              Icons.add_location_alt,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSegmentButton(String text, AdminView view, IconData icon) {
-    final theme = Theme.of(context);
-    final isSelected = _currentView == view;
-
-    final Color? backgroundColor =
-    isSelected ? theme.colorScheme.primary : Colors.transparent;
-    final Color contentColor = isSelected
-        ? theme.colorScheme.onPrimary
-        : theme.textTheme.bodyLarge!.color!;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _currentView = view;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: contentColor),
-            const SizedBox(width: 8),
-            Text(
-              text,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: contentColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildManageView() {
-    return FutureBuilder<List<Station>>(
-      future: _stationsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No stations found.'));
-        }
-
-        final stations = snapshot.data!;
-        return ListView.builder(
-          key: const ValueKey('manage_list'),
-          itemCount: stations.length,
-          itemBuilder: (context, index) {
-            final station = stations[index];
-            return _buildStationListItem(station);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildStationListItem(Station station) {
-    final statusColor = _getStatusColor(context, station.status);
-    final theme = Theme.of(context);
-    final IconData statusIcon =
-    station.status == 'available' ? Icons.check_circle : Icons.cancel;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () {
-          // Navigator.of(context).push(MaterialPageRoute(
-          //   builder: (context) => StationDetailView(station: station),
-          // ));
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(Icons.ev_station,
-                    color: theme.colorScheme.onPrimaryContainer),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      station.name,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      station.address,
-                      style: theme.textTheme.bodySmall,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Icon(statusIcon, color: statusColor, size: 28),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAddView() {
-    return _AddStationForm(
-      key: const ValueKey('add_form'),
-      onAddStation: _addStation,
-    );
-  }
-}
-
-class _AddStationForm extends StatefulWidget {
-  final Function(
-    String name,
-    String address,
-    double latitude,
-    double longitude,
-    String? operator,
-    bool hasBikeCharger,
-    bool hasCarCharger,
-    String status,
-  ) onAddStation;
-
-  const _AddStationForm({super.key, required this.onAddStation});
-
-  @override
-  State<_AddStationForm> createState() => _AddStationFormState();
-}
-
-class _AddStationFormState extends State<_AddStationForm> {
-  final _formKey = GlobalKey<FormState>();
-
-  late final TextEditingController _nameController;
-  late final TextEditingController _addressController;
-  late final TextEditingController _latitudeController;
-  late final TextEditingController _longitudeController;
-  late final TextEditingController _operatorController;
-
-  String? _selectedStatus;
-  bool _hasBikeCharger = false;
-  bool _hasCarCharger = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController();
-    _addressController = TextEditingController();
-    _latitudeController = TextEditingController();
-    _longitudeController = TextEditingController();
-    _operatorController = TextEditingController();
+    _searchController = TextEditingController();
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _addressController.dispose();
-    _latitudeController.dispose();
-    _longitudeController.dispose();
-    _operatorController.dispose();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      if (!_hasBikeCharger && !_hasCarCharger) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please select at least one charger type.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+  void _onSearchChanged() {
+    setState(() {
+      _searchTerm = _searchController.text;
+    });
+  }
 
-      widget.onAddStation(
-        _nameController.text,
-        _addressController.text,
-        double.parse(_latitudeController.text),
-        double.parse(_longitudeController.text),
-        _operatorController.text,
-        _hasBikeCharger,
-        _hasCarCharger,
-        _selectedStatus!,
+  Future<List<Station>> _fetchStations() async {
+    final response = await Supabase.instance.client
+        .from('charging_stations')
+        .select()
+        .order('created_at', ascending: false);
+    return (response as List).map((map) => Station.fromMap(map)).toList();
+  }
+
+  void _refreshStations() {
+    setState(() {
+      _stationsFuture = _fetchStations();
+    });
+  }
+
+  void _showFeedback(String message, bool isError) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Theme.of(context).colorScheme.error : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+        margin: const EdgeInsets.all(10.0),
+      ),
+    );
+  }
+
+  void _addStation(String name, String address, double latitude, double longitude, bool hasBikeCharger, bool hasCarCharger, String status) async {
+    try {
+      await _adminStationService.addStation(
+        name: name, address: address, latitude: latitude, longitude: longitude,
+        hasBikeCharger: hasBikeCharger, hasCarCharger: hasCarCharger, status: status,
       );
+      _showFeedback('$name has been added.', false);
+      _refreshStations();
+      setState(() => _currentView = AdminView.manage);
+    } catch (e) {
+      _showFeedback('Error adding station: ${e.toString().split('.').first}', true);
+    }
+  }
+
+  void _updateStation(int stationId, String name, String address, double latitude, double longitude, bool hasBikeCharger, bool hasCarCharger, String status) async {
+    try {
+      await _adminStationService.updateStation(
+        stationId: stationId, name: name, address: address, latitude: latitude, longitude: longitude,
+        hasBikeCharger: hasBikeCharger, hasCarCharger: hasCarCharger, status: status,
+      );
+      _showFeedback('$name has been updated.', false);
+      _refreshStations();
+      setState(() {
+        _currentView = AdminView.manage;
+        _editingStation = null;
+      });
+    } catch (e) {
+      _showFeedback('Error updating station: ${e.toString().split('.').first}', true);
+    }
+  }
+
+  void _promptDeleteStation(int stationId, String stationName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          title: const Text('Delete Station'),
+          content: Text('Are you sure you want to delete $stationName?'),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+              child: const Text('Delete'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _deleteStation(stationId, stationName);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _deleteStation(int stationId, String stationName) async {
+    try {
+      await _adminStationService.deleteStation(stationId: stationId);
+      _showFeedback('$stationName has been deleted.', false);
+      _refreshStations();
+      setState(() {
+        _currentView = AdminView.manage;
+        _editingStation = null;
+      });
+    } catch (e) {
+      _showFeedback('Error deleting station: ${e.toString().split('.').first}', true);
+    }
+  }
+
+  Color _getStatusColor(BuildContext context, String status) {
+    final colorScheme = Theme.of(context).colorScheme;
+    switch (status.toLowerCase()) {
+      case 'available': return colorScheme.primary;
+      case 'offline': return colorScheme.error;
+      default: return Colors.grey.shade500;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'available': return Icons.check_circle_outline_rounded;
+      case 'offline': return Icons.power_settings_new_rounded;
+      default: return Icons.help_outline_rounded;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Basic Information'),
-            Card(
-              child: Padding(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _nameController,
-                      decoration:
-                      const InputDecoration(labelText: 'Station Name'),
-                      validator: (value) => value == null || value.isEmpty
-                          ? 'Please enter a name'
-                          : null,
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _addressController,
-                      decoration: const InputDecoration(labelText: 'Address'),
-                      maxLines: 3,
-                      validator: (value) => value == null || value.isEmpty
-                          ? 'Please enter an address'
-                          : null,
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _operatorController,
-                      decoration: const InputDecoration(labelText: 'Operator'),
-                      validator: (value) => value == null || value.isEmpty
-                          ? 'Please enter an operator'
-                          : null,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
+    final theme = Theme.of(context);
 
-            _buildSectionTitle('Location (Coordinates)'),
-            Card(
-              child: Padding(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _latitudeController,
-                        decoration: const InputDecoration(labelText: 'Latitude'),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Required';
-                          }
-                          if (double.tryParse(value) == null) {
-                            return 'Invalid number';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _longitudeController,
-                        decoration:
-                        const InputDecoration(labelText: 'Longitude'),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Required';
-                          }
-                          if (double.tryParse(value) == null) {
-                            return 'Invalid number';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
+    String titleText = 'Manage Stations';
+    if (_currentView == AdminView.add) {
+      titleText = 'Add New Station';
+    } else if (_currentView == AdminView.edit && _editingStation != null) {
+      titleText = 'Edit: ${_editingStation!.name}';
+    }
 
-            _buildSectionTitle('Station Properties'),
-            Card(
-              child: Padding(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: _selectedStatus,
-                      decoration: const InputDecoration(labelText: 'Status'),
-                      items: ['available', 'offline']
-                          .map((status) => DropdownMenuItem(
-                        value: status,
-                        child: Text(status),
-                      ))
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedStatus = value;
-                        });
-                      },
-                      validator: (value) =>
-                      value == null ? 'Please select a status' : null,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Charger Types',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _hasBikeCharger,
-                          onChanged: (value) {
-                            setState(() {
-                              _hasBikeCharger = value!;
-                            });
-                          },
-                        ),
-                        const Text('Bike Charger'),
-                        const SizedBox(width: 16),
-                        Checkbox(
-                          value: _hasCarCharger,
-                          onChanged: (value) {
-                            setState(() {
-                              _hasCarCharger = value!;
-                            });
-                          },
-                        ),
-                        const Text('Car Charger'),
-                      ],
-                    )
-                  ],
-                ),
-              ),
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      resizeToAvoidBottomInset: false, 
+      appBar: AppBar(
+        title: Text(titleText, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+        backgroundColor: Colors.grey[100],
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        iconTheme: IconThemeData(color: theme.colorScheme.onSurface),
+        leading: (_currentView == AdminView.edit || _currentView == AdminView.add)
+            ? IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () {
+            setState(() {
+              _currentView = AdminView.manage;
+              _editingStation = null;
+              _searchController.clear();
+            });
+          },
+        )
+            : null,
+        actions: [
+          if (_currentView == AdminView.manage) ...[
+            IconButton(
+              icon: const Icon(Icons.add_location_alt_outlined),
+              tooltip: 'New Station',
+              onPressed: () => setState(() => _currentView = AdminView.add),
             ),
-            const SizedBox(height: 32),
-            Center(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text('Add Station'),
-                onPressed: _submitForm,
-                style: ElevatedButton.styleFrom(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                ),
-              ),
+            IconButton(
+              icon: const Icon(Icons.logout_rounded),
+              tooltip: 'Logout',
+              onPressed: () async {
+                await Supabase.instance.client.auth.signOut();
+                if (!mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => AuthView(onClose: () {}, onViewModeChange: (bool isSignup) {})),
+                      (route) => false,
+                );
+              },
             ),
-            const SizedBox(height: 80), // Added padding at the bottom
-          ],
-        ),
+          ]
+        ],
+      ),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        child: _buildCurrentView(),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
+  Widget _buildCurrentView() {
+    switch (_currentView) {
+      case AdminView.manage:
+        return _buildManageView(key: const ValueKey('manage'));
+      case AdminView.add:
+        return AddStationForm(
+          key: const ValueKey('add'),
+          onSave: _addStation,
+          onCancel: () => setState(() => _currentView = AdminView.manage),
+        );
+      case AdminView.edit:
+        if (_editingStation != null) {
+          return AddStationForm(
+            key: ValueKey('edit_form_${_editingStation!.stationId}'),
+            stationToEdit: _editingStation,
+            onSave: (name, address, lat, long, hasBike, hasCar, status) {
+              _updateStation(_editingStation!.stationId, name, address, lat, long, hasBike, hasCar, status);
+            },
+            onCancel: () {
+              setState(() {
+                _currentView = AdminView.manage;
+                _editingStation = null;
+              });
+            },
+            onDelete: _promptDeleteStation,
+          );
+        }
+        return _buildManageView(key: const ValueKey('manage_fallback'));
+    }
+  }
+
+  Widget _buildManageView({Key? key}) {
+    final theme = Theme.of(context);
+    return Column(
+      key: key,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search stations by name or address...',
+              hintStyle: TextStyle(color: Colors.grey[600]),
+              prefixIcon: Icon(Icons.search_rounded, color: theme.colorScheme.primary.withOpacity(0.8)),
+              suffixIcon: _searchTerm.isNotEmpty
+                  ? IconButton(
+                icon: Icon(Icons.clear_rounded, color: Colors.grey[600]),
+                onPressed: () {
+                  _searchController.clear();
+                },
+              )
+                  : null,
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12.0),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+            ),
+          ),
+        ),
+        Expanded(
+          child: FutureBuilder<List<Station>>(
+            future: _stationsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting && _stationsFuture == null) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.cloud_off_rounded, color: theme.colorScheme.error, size: 48),
+                      const SizedBox(height: 16),
+                      Text('Could not load stations.', textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
+                      Text('${snapshot.error}', textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(icon: const Icon(Icons.refresh_rounded), label: const Text("Retry"), onPressed: _refreshStations, style: ElevatedButton.styleFrom(backgroundColor: theme.colorScheme.primary, foregroundColor: theme.colorScheme.onPrimary))
+                    ]),
+                  ),
+                );
+              }
+
+              final allStations = snapshot.data ?? [];
+              final List<Station> filteredStations;
+              if (_searchTerm.isEmpty) {
+                filteredStations = allStations;
+              } else {
+                filteredStations = allStations.where((station) {
+                  final searchTermLower = _searchTerm.toLowerCase();
+                  return station.name.toLowerCase().contains(searchTermLower) ||
+                      station.address.toLowerCase().contains(searchTermLower);
+                }).toList();
+              }
+
+              if (allStations.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.explore_off_rounded, color: Colors.grey[400], size: 72),
+                      const SizedBox(height: 20),
+                      Text('No Stations Yet', style: theme.textTheme.headlineSmall?.copyWith(color: Colors.grey[700])),
+                      const SizedBox(height: 8),
+                      Text('Start by adding a new charging station.', textAlign: TextAlign.center, style: theme.textTheme.bodyLarge?.copyWith(color: Colors.grey[600])),
+                    ]),
+                  ),
+                );
+              }
+
+              if (filteredStations.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.search_off_rounded, color: Colors.grey[400], size: 72),
+                      const SizedBox(height: 20),
+                      Text('No Results Found', style: theme.textTheme.headlineSmall?.copyWith(color: Colors.grey[700])),
+                      const SizedBox(height: 8),
+                      Text('Try a different search term or clear the search to see all stations.', textAlign: TextAlign.center, style: theme.textTheme.bodyLarge?.copyWith(color: Colors.grey[600])),
+                    ]),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), // Adjusted bottom padding
+                itemCount: filteredStations.length,
+                itemBuilder: (context, index) => _buildStationListItem(filteredStations[index]),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStationListItem(Station station) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final statusColor = _getStatusColor(context, station.status);
+    final statusIcon = _getStatusIcon(station.status);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.12),
+            spreadRadius: 0.5,
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12.0),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12.0),
+          onTap: () => setState(() { _editingStation = station; _currentView = AdminView.edit; }),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(statusIcon, color: statusColor, size: 22),
+                    const SizedBox(width: 10),
+                    Text(
+                      station.status[0].toUpperCase() + station.status.substring(1),
+                      style: theme.textTheme.labelLarge?.copyWith(color: statusColor, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.edit_rounded, color: Colors.grey[400], size: 20),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(station.name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                const SizedBox(height: 4),
+                Text(station.address, style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]), maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    if (station.hasCarCharger) ...[
+                      Icon(Icons.directions_car_filled_rounded, size: 18, color: Colors.blueGrey[600]),
+                      const SizedBox(width: 4),
+                      Text('Car', style: theme.textTheme.bodySmall?.copyWith(color: Colors.blueGrey[700])),
+                      if (station.hasBikeCharger) const SizedBox(width: 12),
+                    ],
+                    if (station.hasBikeCharger) ...[
+                      Icon(Icons.two_wheeler_rounded, size: 18, color: Colors.blueGrey[600]),
+                      const SizedBox(width: 4),
+                      Text('Bike', style: theme.textTheme.bodySmall?.copyWith(color: Colors.blueGrey[700])),
+                    ],
+                  ],
+                )
+              ],
+            ),
+          ),
         ),
       ),
     );

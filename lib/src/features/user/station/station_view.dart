@@ -8,8 +8,13 @@ import '../../admin/station_management/manage_stations_view.dart';
 
 class StationView extends StatefulWidget {
   final Station station;
+  final bool isAdmin; // Added isAdmin parameter
 
-  const StationView({super.key, required this.station});
+  const StationView({
+    super.key,
+    required this.station,
+    this.isAdmin = false, // Default to false
+  });
 
   @override
   State<StationView> createState() => _StationViewState();
@@ -30,11 +35,11 @@ class _StationViewState extends State<StationView> {
     _userId = supabaseClient.auth.currentUser?.id;
     _stationId = widget.station.stationId;
 
-    if (_userId != null) {
+    if (_userId != null && !widget.isAdmin) { // Only check favorite if not admin
       _checkInitialFavoriteStatus();
     } else {
       setState(() {
-        _isLoadingFavorite = false; // Cannot check if user or station id is null
+        _isLoadingFavorite = false;
       });
     }
   }
@@ -68,7 +73,7 @@ class _StationViewState extends State<StationView> {
   }
 
   Future<void> _toggleFavorite() async {
-    if (_userId == null || _isLoadingFavorite) return;
+    if (_userId == null || _isLoadingFavorite || widget.isAdmin) return; // Prevent toggle if admin
 
     setState(() {
       _isLoadingFavorite = true;
@@ -189,22 +194,23 @@ class _StationViewState extends State<StationView> {
               ),
             ),
             actions: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: _isLoadingFavorite
-                      ? const Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator(strokeWidth: 2)) 
-                      : IconButton(
-                          icon: Icon(
-                            _isFavorite ? Icons.favorite : Icons.favorite_border,
-                            color: _isFavorite ? Colors.red : Colors.grey,
+              if (!widget.isAdmin) // Conditionally show favorite button
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.white,
+                    child: _isLoadingFavorite
+                        ? const Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator(strokeWidth: 2))
+                        : IconButton(
+                            icon: Icon(
+                              _isFavorite ? Icons.favorite : Icons.favorite_border,
+                              color: _isFavorite ? Colors.red : Colors.grey,
+                            ),
+                            iconSize: 26,
+                            onPressed: (_userId == null) ? null : _toggleFavorite,
                           ),
-                          iconSize: 26,
-                          onPressed: (_userId == null) ? null : _toggleFavorite,
-                        ),
+                  ),
                 ),
-              ),
             ],
           ),
           SliverToBoxAdapter(
@@ -260,13 +266,13 @@ class _StationViewState extends State<StationView> {
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    "Chargers :", 
+                    "Chargers :",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   if (widget.station.hasCarCharger)
                     _buildChargerCard(carChargerName, carChargerCapacity, carChargerIcon),
-                  const SizedBox(height: 12), 
+                  const SizedBox(height: 12),
                   if (widget.station.hasBikeCharger)
                     _buildChargerCard(bikeChargerName, bikeChargerCapacity, bikeChargerIcon),
                   const SizedBox(height: 30),
@@ -303,25 +309,27 @@ class _StationViewState extends State<StationView> {
                 child: const Text("Get direction", style: TextStyle(fontSize: 16)),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            if (!widget.isAdmin) ...[ // Conditionally show "Book a slot" button
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    debugPrint("Booking a slot at ${widget.station.name}");
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => BookingView(stationId: widget.station.stationId)),
+                    );
+                  },
+                  child: const Text("Book a slot", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-                onPressed: () {
-                  debugPrint("Booking a slot at ${widget.station.name}");
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => BookingView(stationId: widget.station.stationId)),
-                  );
-                },
-                child: const Text("Book a slot", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-            ),
+            ],
           ],
         ),
       ),
