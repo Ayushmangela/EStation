@@ -5,20 +5,18 @@ import 'dart:async';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Corrected import to use package notation
-import 'package:testing/main.dart';
-
-import '../../admin/station_management/manage_stations_view.dart';
+import 'package:testing/main.dart'; // For appRouteObserver
+import '../../admin/station_management/manage_stations_view.dart'; // For Station model
 import '../favorites/favorites_service.dart';
 import 'map_controller.dart';
 import 'map_service.dart';
 import 'station_card.dart';
 import '../station/station_view.dart';
-import '../booking/booking_view.dart'; // Added import for BookingView
+import '../booking/booking_view.dart';
 
 class UserMapView extends StatefulWidget {
-  final bool isAdmin; // Added isAdmin parameter
-  const UserMapView({super.key, this.isAdmin = false}); // Default to false
+  final bool isAdmin; 
+  const UserMapView({super.key, this.isAdmin = false});
 
   @override
   State<UserMapView> createState() => _UserMapViewState();
@@ -32,7 +30,8 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   String? _mapStyle;
   bool _isLoading = true;
   bool _showListView = false;
-  Map<String, dynamic>? _selectedStation;
+  // _selectedStation now stores the Map {'station': Station, 'distance': double}
+  Map<String, dynamic>? _selectedStationDataMap;
 
   late FavoritesService _favoritesService;
   String? _userId;
@@ -42,14 +41,11 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   @override
   void initState() {
     super.initState();
-
     final supabase = Supabase.instance.client;
     _favoritesService = FavoritesService(supabase);
     _userId = supabase.auth.currentUser?.id;
-
     final mapService = MapService(supabase);
     _mapControllerHelper = MapController(mapService);
-
     _initializeMap();
   }
 
@@ -75,31 +71,32 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
     super.didPopNext();
   }
 
-  void onStationSelectedCallback(Map<String, dynamic> station) {
+  // stationDataMap is {'station': Station, 'distance': double}
+  void onStationSelectedCallback(Map<String, dynamic> stationDataMap) {
     if (mounted) {
-      final stationId = station['station_id'] as int?;
-      if (stationId != null &&
+      final Station? station = stationDataMap['station'] as Station?;
+      if (station != null &&
           _userId != null &&
-          !widget.isAdmin && // Admins don't have favorites
-          !_stationFavoriteStatus.containsKey(stationId) &&
-          !(_stationLoadingStatus[stationId] ?? false)) {
-        _fetchFavoriteStatus(stationId);
+          !widget.isAdmin &&
+          !_stationFavoriteStatus.containsKey(station.stationId) &&
+          !(_stationLoadingStatus[station.stationId] ?? false)) {
+        _fetchFavoriteStatus(station.stationId);
       }
       setState(() {
-        _selectedStation = station;
+        _selectedStationDataMap = stationDataMap;
         _showListView = false;
       });
-      _animateToStation(station);
+      _animateToStation(stationDataMap);
     }
   }
 
   void _refreshVisibleFavoriteStatuses() {
-    if (!mounted || widget.isAdmin) return; // Admins don't have favorites
-    if (!_showListView && _selectedStation != null) {
-      final stationId = _selectedStation!['station_id'] as int?;
-      if (stationId != null) {
-        debugPrint("UserMapView: Refreshing favorite for selected station $stationId");
-        _fetchFavoriteStatus(stationId);
+    if (!mounted || widget.isAdmin) return;
+    if (!_showListView && _selectedStationDataMap != null) {
+      final Station? station = _selectedStationDataMap!['station'] as Station?;
+      if (station != null) {
+        debugPrint("UserMapView: Refreshing favorite for selected station ${station.stationId}");
+        _fetchFavoriteStatus(station.stationId);
       }
     }
     if (_showListView) {
@@ -107,7 +104,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
       _stationFavoriteStatus.clear();
       _stationLoadingStatus.clear();
     }
-    setState(() {});
+    setState(() {}); // Refresh UI if necessary
   }
 
   Future<void> _fetchFavoriteStatus(int stationId) async {
@@ -164,16 +161,17 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
     await _getCurrentLocation();
     if (mounted) setState(() => _isLoading = false);
     _loadMapStyle();
-
     await _mapControllerHelper.loadStations(_currentPosition, onStationSelectedCallback);
-
     if (mounted) setState(() {});
   }
 
-  Future<void> _animateToStation(Map<String, dynamic> station) async {
-    final LatLng? stationPosition = station['position'] as LatLng?;
+  // stationDataMap is {'station': Station, 'distance': double}
+  Future<void> _animateToStation(Map<String, dynamic> stationDataMap) async {
+    final Station? station = stationDataMap['station'] as Station?;
+    if (station == null) return;
+    final LatLng stationPosition = LatLng(station.latitude, station.longitude);
     try {
-      if (_mapController != null && stationPosition != null) {
+      if (_mapController != null) {
         await _mapController!.animateCamera(CameraUpdate.newCameraPosition(
             CameraPosition(target: stationPosition, zoom: 17)));
       }
@@ -224,7 +222,6 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
-                // Layer 1: Background (Map or List View)
                 if (_showListView)
                   Container(color: Colors.white, child: _buildListView())
                 else
@@ -248,11 +245,9 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                     zoomControlsEnabled: false,
                     compassEnabled: true,
                     onTap: (_) {
-                      if (mounted) setState(() => _selectedStation = null);
+                      if (mounted) setState(() => _selectedStationDataMap = null);
                     },
                   ),
-
-                // Layer 2: Gradient on top of background
                 IgnorePointer(
                   child: Container(
                     height: 160.0,
@@ -269,23 +264,23 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                     ),
                   ),
                 ),
-
-                // Layer 3: Conditional UI on top of gradient
-                if (!_showListView && _selectedStation != null)
+                if (!_showListView && _selectedStationDataMap != null)
                   Positioned(
                     bottom: 100,
                     left: 0,
                     right: 0,
                     child: Builder(builder: (cardContext) {
-                      final capturedStation = _selectedStation;
-                      if (capturedStation == null) {
-                        return const SizedBox.shrink();
-                      }
-                      final stationId = capturedStation['station_id'] as int?;
+                      final capturedStationDataMap = _selectedStationDataMap;
+                      if (capturedStationDataMap == null) return const SizedBox.shrink();
 
-                      if (stationId != null &&
-                          _userId != null &&
-                          !widget.isAdmin && // Admins don't have favorites
+                      final Station? station = capturedStationDataMap['station'] as Station?;
+                      final double? distanceKm = capturedStationDataMap['distance'] as double?;
+
+                      if (station == null) return const SizedBox.shrink();
+                      final int stationId = station.stationId;
+
+                      if (_userId != null &&
+                          !widget.isAdmin &&
                           !_stationFavoriteStatus.containsKey(stationId) &&
                           !(_stationLoadingStatus[stationId] ?? false)) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -293,64 +288,34 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                         });
                       }
                       return StationCard(
-                        stationId: stationId ?? -1,
-                        name: capturedStation['name'] ?? "Charging Station",
-                        address: capturedStation['address'] ?? "No address",
-                        distanceKm: capturedStation['distance'] as double?,
+                        stationId: stationId,
+                        name: station.name,
+                        address: station.address,
+                        distanceKm: distanceKm,
                         viewLabel: "View Detail",
-                        isFavorite: stationId != null
-                            ? (_stationFavoriteStatus[stationId] ?? false)
-                            : false,
-                        isLoadingFavorite: stationId != null
-                            ? (_stationLoadingStatus[stationId] ?? false)
-                            : false,
-                        onFavoriteToggle: stationId != null
-                            ? () => _toggleFavorite(stationId)
-                            : () => ScaffoldMessenger.of(cardContext).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'Station ID missing or user not logged in.')),
-                                ),
+                        isFavorite: _stationFavoriteStatus[stationId] ?? false,
+                        isLoadingFavorite: _stationLoadingStatus[stationId] ?? false,
+                        onFavoriteToggle: () => _toggleFavorite(stationId),
                         onViewPressed: () {
-                          final station = Station(
-                            stationId: capturedStation['station_id'] as int,
-                            name: capturedStation['name'] as String,
-                            address: capturedStation['address'] as String,
-                            latitude: (capturedStation['latitude'] as num).toDouble(),
-                            longitude: (capturedStation['longitude'] as num).toDouble(),
-                            // operator: capturedStation['operator'] as String?, // Removed operator
-                            hasBikeCharger: capturedStation['has_bike_charger'] as bool? ?? false,
-                            hasCarCharger: capturedStation['has_car_charger'] as bool? ?? false,
-                            status: capturedStation['status'] as String? ?? 'unknown',
-                            createdAt: DateTime.parse(capturedStation['created_at'] as String),
-                            updatedAt: DateTime.parse(capturedStation['updated_at'] as String),
-                          );
+                          // The station object is already fully formed
                           Navigator.push(
                               context,
                               MaterialPageRoute(
                                   builder: (_) => StationView(
-                                    station: station,
-                                    isAdmin: widget.isAdmin, // Pass isAdmin here
+                                    station: station, // Pass the Station object directly
+                                    isAdmin: widget.isAdmin,
                                   )));
                         },
                         onBookPressed: () {
-                          if (stationId != null) {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => BookingView(stationId: stationId)));
-                          } else {
-                            ScaffoldMessenger.of(cardContext).showSnackBar(
-                              const SnackBar(content: Text('Station ID is not available.')),
-                            );
-                          }
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => BookingView(stationId: stationId)));
                         },
                         isAdmin: widget.isAdmin,
                       );
                     }),
                   ),
-
-                // Layer 4: Topmost UI
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
@@ -367,19 +332,24 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   }
 
   Widget _buildListView() {
-    final stations = _mapControllerHelper.stations;
-    if (stations.isEmpty) {
+    // _mapControllerHelper.stations now returns List<Map<String, dynamic>>
+    final stationsDataList = _mapControllerHelper.stations;
+    if (stationsDataList.isEmpty) {
       return const Center(child: Text("Loading stations or no stations available..."));
     }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 120, 16, 100),
-      itemCount: stations.length,
+      itemCount: stationsDataList.length,
       itemBuilder: (context, index) {
-        final station = stations[index];
-        final stationId = station['station_id'] as int?;
-        if (stationId != null &&
-            _userId != null &&
-            !widget.isAdmin && // Admins don't have favorites
+        final stationDataMap = stationsDataList[index];
+        final Station? station = stationDataMap['station'] as Station?;
+        final double? distanceKm = stationDataMap['distance'] as double?;
+
+        if (station == null) return const SizedBox.shrink(); // Should not happen if data is correct
+        final int stationId = station.stationId;
+
+        if (_userId != null &&
+            !widget.isAdmin &&
             !_stationFavoriteStatus.containsKey(stationId) &&
             !(_stationLoadingStatus[stationId] ?? false)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -387,56 +357,21 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
           });
         }
         return StationCard(
-          stationId: stationId ?? -1,
-          name: station['name'] ?? 'Charging Station',
-          address: station['address'] ?? 'No address',
-          distanceKm: station['distance'] as double?,
+          stationId: stationId,
+          name: station.name,
+          address: station.address,
+          distanceKm: distanceKm,
           viewLabel: "View Station",
-          isFavorite:
-              stationId != null ? (_stationFavoriteStatus[stationId] ?? false) : false,
-          isLoadingFavorite:
-              stationId != null ? (_stationLoadingStatus[stationId] ?? false) : false,
-          onFavoriteToggle: stationId != null
-              ? () => _toggleFavorite(stationId)
-              : () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Station ID missing or user not logged in.')),
-                  ),
+          isFavorite: _stationFavoriteStatus[stationId] ?? false,
+          isLoadingFavorite: _stationLoadingStatus[stationId] ?? false,
+          onFavoriteToggle: () => _toggleFavorite(stationId),
           onViewPressed: () {
-            // For direct navigation from list (if desired in future):
-            /*
-            final detailedStation = Station(
-              stationId: station['station_id'] as int,
-              name: station['name'] as String,
-              address: station['address'] as String,
-              latitude: (station['latitude'] as num).toDouble(),
-              longitude: (station['longitude'] as num).toDouble(),
-              // operator: station['operator'] as String?, // Removed operator
-              hasBikeCharger: station['has_bike_charger'] as bool? ?? false,
-              hasCarCharger: station['has_car_charger'] as bool? ?? false,
-              status: station['status'] as String? ?? 'unknown',
-              createdAt: DateTime.parse(station['created_at'] as String),
-              updatedAt: DateTime.parse(station['updated_at'] as String),
-            );
-            Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => StationView(
-                          station: detailedStation,
-                          isAdmin: widget.isAdmin, // Pass isAdmin here
-                        )));
-            */
-            onStationSelectedCallback(station); // This will show the card on map view if not already
+            // Pass the whole map to the callback, which expects it
+            onStationSelectedCallback(stationDataMap);
           },
           onBookPressed: () {
-            if (stationId != null) {
-              Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => BookingView(stationId: stationId)));
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Station ID is not available.')),
-              );
-            }
+            Navigator.push(
+                context, MaterialPageRoute(builder: (_) => BookingView(stationId: stationId)));
           },
           isAdmin: widget.isAdmin,
         );
@@ -444,26 +379,32 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
     );
   }
 
-  // ## UI ENHANCEMENT: MODERN SEARCH BAR AND SUGGESTIONS ##
   Widget _buildSearchRow() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
+          // Autocomplete now works with List<Map<String, dynamic>>
           child: Autocomplete<Map<String, dynamic>>(
-            displayStringForOption: (station) => station['name'] as String,
+            displayStringForOption: (stationDataMap) {
+              final Station? station = stationDataMap['station'] as Station?;
+              return station?.name ?? 'Unknown Station';
+            },
             optionsBuilder: (TextEditingValue textEditingValue) {
               if (textEditingValue.text.isEmpty) {
                 return const Iterable<Map<String, dynamic>>.empty();
               }
-              return _mapControllerHelper.stations.where((station) {
-                final String name = (station['name'] as String?)?.toLowerCase() ?? '';
-                final String address = (station['address'] as String?)?.toLowerCase() ?? '';
+              // _mapControllerHelper.stations is List<Map<String, dynamic>>
+              return _mapControllerHelper.stations.where((stationDataMap) {
+                final Station? station = stationDataMap['station'] as Station?;
+                if (station == null) return false;
+                final String name = station.name.toLowerCase();
+                final String address = station.address.toLowerCase();
                 final String query = textEditingValue.text.toLowerCase();
                 return name.contains(query) || address.contains(query);
               });
             },
-            onSelected: (selection) {
+            onSelected: (selection) { // selection is Map<String, dynamic>
               FocusScope.of(context).unfocus();
               onStationSelectedCallback(selection);
             },
@@ -515,7 +456,6 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                   ),
                 );
               }
-
               return Align(
                 alignment: Alignment.topLeft,
                 child: Material(
@@ -529,29 +469,26 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                       separatorBuilder: (_, __) =>
                           const Divider(height: 1, indent: 72, endIndent: 16),
                       itemBuilder: (BuildContext context, int index) {
-                        final station = options.elementAt(index);
-                        final distance = station['distance'] as double?;
+                        final stationDataMap = options.elementAt(index);
+                        final Station? station = stationDataMap['station'] as Station?;
+                        final double? distance = stationDataMap['distance'] as double?;
+                        if (station == null) return const SizedBox.shrink();
+
                         return ListTile(
                           leading: const CircleAvatar(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
                             child: Icon(Icons.ev_station_rounded),
                           ),
-                          title: Text(station['name'] ?? 'Unknown Station',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text(
-                              station['address'] ?? 'No address available',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
+                          title: Text(station.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text(station.address, maxLines: 1, overflow: TextOverflow.ellipsis),
                           trailing: distance != null
                               ? Text(
                                   '${distance.toStringAsFixed(1)} km',
-                                  style: const TextStyle(
-                                      color: Colors.grey, fontSize: 12),
+                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                                 )
                               : null,
-                          onTap: () => onSelected(station),
+                          onTap: () => onSelected(stationDataMap),
                         );
                       },
                     ),
@@ -618,7 +555,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
           if (mounted) {
             setState(() {
               _showListView = true;
-              _selectedStation = null;
+              _selectedStationDataMap = null;
             });
           }
         },

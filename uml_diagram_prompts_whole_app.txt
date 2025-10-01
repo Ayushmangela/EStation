@@ -1,0 +1,109 @@
+**Diagram Prompts for Whole App Architecture (EV Charging App)**
+
+**1. High-Level Component Diagram (Architectural Overview)**
+
+*   **Purpose:** To show the major building blocks of your application and how they connect. This is excellent for an overall architectural view.
+*   **Prompt Idea:**
+    "Create a **Component Diagram** for the EV Charging Station Finder application.
+    **Components:**
+    *   `Flutter UI App` (Represents the entire Flutter frontend)
+        *   Key Interfaces/Sub-components: `User View Layer` (e.g., UserMapView, StationView), `Admin View Layer` (e.g., ManageStationsView)
+    *   `Application Services` (Logical grouping of your core business logic residing in Flutter)
+        *   Key Interfaces/Sub-components: `StationDataService` (combining MapService & parts of AdminStationService logic for fetching/managing station info), `BookingManagementService`, `UserAccountService` (profile, favorites), `DeviceLocationService` (wrapping Geolocator)
+    *   `Supabase Backend Interface` (A logical component representing the layer that directly uses the Supabase SDK for all backend communication)
+        *   Provided Interfaces: `Database CRUD Operations`, `Authentication Gateway`
+    *   `External SDKs/Plugins` (Client-side external integrations)
+        *   Components: `Google Maps SDK Plugin`, `Geolocator Plugin`
+    *   `Supabase Cloud Backend` (Represents the server-side Supabase services)
+        *   Sub-components: `PostgreSQL Database`, `Supabase Auth Service`
+
+    **Connectors & Dependencies:**
+    *   `Flutter UI App` depends on `Application Services` for business logic and data.
+    *   `Flutter UI App` (User View Layer) directly uses `Google Maps SDK Plugin` for map display.
+    *   `Application Services` (specifically `DeviceLocationService`) uses `Geolocator Plugin`.
+    *   `Application Services` depend on `Supabase Backend Interface` to interact with Supabase.
+    *   `Supabase Backend Interface` communicates with `Supabase Cloud Backend` (Database and Auth Service).
+    *   Show primary dependencies with clear direction (e.g., UI *requests* data from Application Services).
+    *   Stereotypes can be used: e.g., <<Flutter App>>, <<Service Layer>>, <<Backend Gateway>>, <<External Plugin>>, <<Cloud Platform>>."
+
+**2. Top-Level Use Case Diagram (Holistic User Interactions)**
+
+*   **Purpose:** Summarizes all key interactions any user type can have with the entire system.
+*   **Prompt (Re-emphasizing comprehensiveness from previous version):**
+    "Create a comprehensive **Use Case Diagram** for the EV Charging Station Finder application, capturing all primary functionalities.
+    **Actors:** `User`, `Admin`.
+    **Key User Use Cases:** `View Stations (Map/List)`, `Search & Filter Stations`, `View Station Details`, `Book Charging Slot`, `Manage Own Bookings`, `Manage Favorite Stations`, `Get Directions`, `Manage Profile`, `Register/Login`.
+    **Key Admin Use Cases:** `Manage Station Inventory` (includes CRUD for stations & capacities), `View All User Bookings`, `Access System Dashboard`, `Admin Login`. (Admin inherits User use cases or has them listed separately).
+    **Relationships:** Utilize `<<include>>` for common functionalities (e.g., Login included in Book Slot), `<<extend>>` for optional functionalities, and generalization for actor roles."
+
+**3. Simplified Class Diagram (Architectural Layers & Key Classes)**
+
+*   **Purpose:** Shows the main static structure by highlighting key classes in each architectural layer and their most important relationships.
+*   **Prompt Idea:**
+    "Create a simplified **Class Diagram** focusing on the architectural layers of the Flutter EV Charging App.
+    **Layers (Packages/Groupings):**
+    *   `UI Layer (Views & Widgets)`: Key Classes: `UserMapView`, `StationView`, `UserHomeView` (navigator), `ManageStationsView` (admin), `AddStationForm` (admin), `StationCard` (display).
+    *   `Controller/ViewModel Layer`: Key Classes: `MapController` (manages map state & markers).
+    *   `Service Layer (Business Logic)`: Key Classes: `MapService` (fetches station data for map), `AdminStationService` (admin CRUD for stations), `FavoritesService`, `BookingService` (conceptual, for booking logic).
+    *   `Data Model Layer`: Key Classes: `Station` (with all its attributes including capacities), `User` (simplified), `Booking` (simplified).
+    *   `Data Access/Integration Layer`: Key Classes: `SupabaseClient` (representing its role as the gateway to Supabase).
+
+    **Key Relationships:**
+    *   Dependencies: e.g., `UserMapView` *uses* `MapController`. `MapController` *uses* `MapService`. All data services *use* `SupabaseClient`. Services operate on/return `Station` models.
+    *   Composition/Aggregation: e.g., `UserHomeView` *contains* `UserMapView`.
+    *   Focus on relationships *between layers* and critical interactions. Show only essential attributes/methods for architectural clarity."
+
+**4. High-Level Activity Diagram (Primary End-to-End User Journey)**
+
+*   **Purpose:** Illustrates a complete, typical user flow from start to finish, interacting with the whole application.
+*   **Prompt Idea for "User Finds, Books, and Navigates to a Station":**
+    "Create a high-level **Activity Diagram** for the 'User Finds, Books, and Navigates to a Charging Station' journey.
+    **Swimlanes (optional but recommended):** User, Mobile App (UI), Application Logic (Services), Backend (Supabase).
+    **Activities & Flow:**
+    1.  Start: User opens app.
+    2.  (App Logic/Backend) Authenticate User (if needed).
+    3.  (Mobile App) User requests to view stations.
+    4.  (App Logic) Fetch station data (using relevant services).
+    5.  (Backend) Provide station data.
+    6.  (Mobile App) Display stations on map/list.
+    7.  (User) Selects a station.
+    8.  (Mobile App) Display station details.
+    9.  Decision: Station available?
+        *   [Yes] (User) Opts to book.
+        *   (Mobile App) User enters booking info.
+        *   (App Logic) Process booking request.
+        *   (Backend) Create booking record.
+        *   (Mobile App) Confirm booking to user.
+        *   (User) Opts to get directions.
+        *   (Mobile App) Request directions (via external map service).
+        *   (Mobile App) Display navigation.
+        *   [No] (Mobile App) Inform user station is unavailable/offline.
+    10. End."
+
+**5. High-Level Sequence Diagram (Key Cross-Component Interaction)**
+
+*   **Purpose:** Shows the sequence of messages between major architectural components for a critical end-to-end scenario, emphasizing the interaction order.
+*   **Prompt Idea for "User Successful Station Booking":**
+    "Create a high-level **Sequence Diagram** for a 'Successful Station Booking'.
+    **Lifelines (representing major components/layers):**
+    *   `:User`
+    *   `:FlutterUI` (e.g., `StationView`, `BookingView`)
+    *   `:BookingService` (or relevant Application Service)
+    *   `:SupabaseInterface` (data access layer for Supabase)
+    *   `:StationAvailabilityService` (conceptual, could be part of BookingService or StationDataService to check status/slots)
+
+    **Sequence:**
+    1.  User, on `:FlutterUI` (StationView), taps 'Book Slot' for a station.
+    2.  `:FlutterUI` requests to initiate booking from `:BookingService` (passing station ID, user info).
+    3.  `:BookingService` requests station status/availability from `:StationAvailabilityService` (passing station ID).
+    4.  `:StationAvailabilityService` queries `:SupabaseInterface` for station status (and potentially existing bookings for slots).
+    5.  `:SupabaseInterface` returns data to `:StationAvailabilityService`.
+    6.  `:StationAvailabilityService` confirms availability to `:BookingService`.
+    7.  `:FlutterUI` (BookingView) collects booking details (e.g., time, vehicle) from User.
+    8.  `:FlutterUI` sends `createBookingRequest` to `:BookingService` with all details.
+    9.  `:BookingService` sends `insertBookingCommand` to `:SupabaseInterface`.
+    10. `:SupabaseInterface` inserts data into `user_bookings` table and returns success.
+    11. `:BookingService` returns booking confirmation to `:FlutterUI`.
+    12. `:FlutterUI` displays 'Booking Confirmed' to User."
+
+These prompts aim for a broader, architectural perspective. Remember to adapt the level of detail based on your needs.

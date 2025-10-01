@@ -4,16 +4,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../booking/booking_view.dart'; // Import for BookingView
 import '../favorites/favorites_service.dart'; // Import for FavoritesService
 import 'direction_view.dart';
-import '../../admin/station_management/manage_stations_view.dart';
+import '../../admin/station_management/manage_stations_view.dart'; // For Station model
 
 class StationView extends StatefulWidget {
   final Station station;
-  final bool isAdmin; // Added isAdmin parameter
+  final bool isAdmin; 
 
   const StationView({
     super.key,
     required this.station,
-    this.isAdmin = false, // Default to false
+    this.isAdmin = false, 
   });
 
   @override
@@ -22,7 +22,7 @@ class StationView extends StatefulWidget {
 
 class _StationViewState extends State<StationView> {
   bool _isFavorite = false;
-  bool _isLoadingFavorite = true; // To show loading initially for favorite status
+  bool _isLoadingFavorite = true; 
   late FavoritesService _favoritesService;
   String? _userId;
   late int _stationId;
@@ -35,7 +35,7 @@ class _StationViewState extends State<StationView> {
     _userId = supabaseClient.auth.currentUser?.id;
     _stationId = widget.station.stationId;
 
-    if (_userId != null && !widget.isAdmin) { // Only check favorite if not admin
+    if (_userId != null && !widget.isAdmin) { 
       _checkInitialFavoriteStatus();
     } else {
       setState(() {
@@ -57,7 +57,7 @@ class _StationViewState extends State<StationView> {
         });
       }
     } catch (e) {
-      print("Error checking initial favorite status: $e");
+      debugPrint("Error checking initial favorite status: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error checking favorite status: ${e.toString()}")),
@@ -73,7 +73,7 @@ class _StationViewState extends State<StationView> {
   }
 
   Future<void> _toggleFavorite() async {
-    if (_userId == null || _isLoadingFavorite || widget.isAdmin) return; // Prevent toggle if admin
+    if (_userId == null || _isLoadingFavorite || widget.isAdmin) return; 
 
     setState(() {
       _isLoadingFavorite = true;
@@ -101,7 +101,7 @@ class _StationViewState extends State<StationView> {
         });
       }
     } catch (e) {
-      print("Error toggling favorite: $e");
+      debugPrint("Error toggling favorite: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error updating favorite: ${e.toString()}")),
@@ -119,16 +119,15 @@ class _StationViewState extends State<StationView> {
   @override
   Widget build(BuildContext context) {
     const String localImageAssetPath = "assets/ev-charging.jpg";
-    const String stationStatus = "Open 24 hour";
-    const String distance = "4.5 km";
-    const String cost = "\$15.00 / hour";
-    const String parking = "Free";
-    const List<String> amenities = ["Wifi", "Gym", "Park", "Parking"];
+    // Removed: const String stationStatus = "Open 24 hour";
+    const String distance = "4.5 km"; // This should ideally come from the station data or be calculated
+    // Removed: const String cost = "\$15.00 / hour";
+    const String parking = "Free"; // This could also be a field in station data
+    const List<String> amenities = ["Wifi", "Gym", "Park", "Parking"]; // This could also be from station data
+    
     const String carChargerName = "Car Charger";
-    const String carChargerCapacity = "60KW";
     const IconData carChargerIcon = Icons.directions_car_filled_rounded;
     const String bikeChargerName = "Bike Charger";
-    const String bikeChargerCapacity = "15KW";
     const IconData bikeChargerIcon = Icons.two_wheeler_rounded;
 
     Map<String, IconData> amenityIcons = {
@@ -137,6 +136,20 @@ class _StationViewState extends State<StationView> {
       "Park": Icons.park,
       "Parking": Icons.local_parking,
     };
+
+    // Determine status text and color
+    String displayStatus = widget.station.status.isNotEmpty 
+        ? widget.station.status[0].toUpperCase() + widget.station.status.substring(1)
+        : "Unknown";
+    Color statusColor = widget.station.status.toLowerCase() == 'available' 
+        ? Colors.green 
+        : (widget.station.status.toLowerCase() == 'offline' ? Colors.red : Colors.grey);
+
+    bool isStationOffline = widget.station.status.toLowerCase() == 'offline';
+
+    // Determine if charger cards should be shown
+    final bool showCarCharger = widget.station.carChargerCapacity != null && widget.station.carChargerCapacity!.isNotEmpty;
+    final bool showBikeCharger = widget.station.bikeChargerCapacity != null && widget.station.bikeChargerCapacity!.isNotEmpty;
 
     return Scaffold(
       body: CustomScrollView(
@@ -194,7 +207,7 @@ class _StationViewState extends State<StationView> {
               ),
             ),
             actions: [
-              if (!widget.isAdmin) // Conditionally show favorite button
+              if (!widget.isAdmin)
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: CircleAvatar(
@@ -219,29 +232,32 @@ class _StationViewState extends State<StationView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          widget.station.name,
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       Text(
-                        stationStatus,
-                        style: const TextStyle(fontSize: 14, color: Colors.green, fontWeight: FontWeight.bold),
+                        widget.station.name,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        distance,
-                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            displayStatus, // Use dynamic status
+                            style: TextStyle(fontSize: 14, color: statusColor, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            distance, // Keep distance for now, assuming it might come from elsewhere
+                            style: const TextStyle(fontSize: 14, color: Colors.grey),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildInfoRow("Cost :", cost),
-                  _buildInfoRow("Parking :", parking),
+                  // Removed: _buildInfoRow("Cost :", cost),
+                  _buildInfoRow("Parking :", parking), // Kept parking for now
                   _buildInfoRow("Address :", widget.station.address, isExpanded: true),
                   const SizedBox(height: 24),
                   const Text(
@@ -270,11 +286,12 @@ class _StationViewState extends State<StationView> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  if (widget.station.hasCarCharger)
-                    _buildChargerCard(carChargerName, carChargerCapacity, carChargerIcon),
-                  const SizedBox(height: 12),
-                  if (widget.station.hasBikeCharger)
-                    _buildChargerCard(bikeChargerName, bikeChargerCapacity, bikeChargerIcon),
+                  if (showCarCharger)
+                    _buildChargerCard(carChargerName, widget.station.carChargerCapacity!, carChargerIcon),
+                  if (showCarCharger && showBikeCharger) // Add spacing only if both are shown
+                    const SizedBox(height: 12),
+                  if (showBikeCharger)
+                    _buildChargerCard(bikeChargerName, widget.station.bikeChargerCapacity!, bikeChargerIcon),
                   const SizedBox(height: 30),
                 ],
               ),
@@ -309,22 +326,28 @@ class _StationViewState extends State<StationView> {
                 child: const Text("Get direction", style: TextStyle(fontSize: 16)),
               ),
             ),
-            if (!widget.isAdmin) ...[ // Conditionally show "Book a slot" button
+            if (!widget.isAdmin) ...[ 
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: isStationOffline ? Colors.grey.shade400 : Colors.green,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   onPressed: () {
-                    debugPrint("Booking a slot at ${widget.station.name}");
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => BookingView(stationId: widget.station.stationId)),
-                    );
+                    if (isStationOffline) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Station is currently offline and cannot be booked.')),
+                      );
+                    } else {
+                      debugPrint("Booking a slot at ${widget.station.name}");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => BookingView(stationId: widget.station.stationId)),
+                      );
+                    }
                   },
                   child: const Text("Book a slot", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
@@ -415,7 +438,7 @@ class _StationViewState extends State<StationView> {
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  capacity,
+                  capacity, // This will now display the dynamic capacity
                   style: const TextStyle(fontSize: 14, color: Colors.green),
                 ),
               ],

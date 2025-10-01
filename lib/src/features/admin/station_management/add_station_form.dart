@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'manage_stations_view.dart'; // For Station class
 
 class AddStationForm extends StatefulWidget {
-  final Function(String name, String address, double latitude, double longitude, bool hasBikeCharger, bool hasCarCharger, String status) onSave;
+  final Function(String name, String address, double latitude, double longitude, bool hasBikeCharger, bool hasCarCharger, String status, String? carChargerCapacity, String? bikeChargerCapacity) onSave;
   final VoidCallback onCancel;
   final Station? stationToEdit;
   final Function(int stationId, String stationName)? onDelete;
@@ -25,6 +25,8 @@ class _AddStationFormState extends State<AddStationForm> {
   late TextEditingController _addressController;
   late TextEditingController _latitudeController;
   late TextEditingController _longitudeController;
+  late TextEditingController _carCapacityController; // New
+  late TextEditingController _bikeCapacityController; // New
   String? _selectedStatus;
   bool _hasBikeCharger = false;
   bool _hasCarCharger = false;
@@ -38,9 +40,11 @@ class _AddStationFormState extends State<AddStationForm> {
     _addressController = TextEditingController(text: station?.address);
     _latitudeController = TextEditingController(text: station?.latitude.toString());
     _longitudeController = TextEditingController(text: station?.longitude.toString());
+    _carCapacityController = TextEditingController(text: station?.carChargerCapacity); // New
+    _bikeCapacityController = TextEditingController(text: station?.bikeChargerCapacity); // New
     _selectedStatus = station?.status;
     if (_selectedStatus != null && !['available', 'offline'].contains(_selectedStatus)) {
-      _selectedStatus = 'available'; // Default to 'available' if current status is invalid
+      _selectedStatus = 'available';
     }
     _hasBikeCharger = station?.hasBikeCharger ?? false;
     _hasCarCharger = station?.hasCarCharger ?? false;
@@ -52,6 +56,8 @@ class _AddStationFormState extends State<AddStationForm> {
     _addressController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
+    _carCapacityController.dispose(); // New
+    _bikeCapacityController.dispose(); // New
     super.dispose();
   }
 
@@ -73,6 +79,8 @@ class _AddStationFormState extends State<AddStationForm> {
         _hasBikeCharger,
         _hasCarCharger,
         _selectedStatus!,
+        _hasCarCharger ? _carCapacityController.text.trim() : null, // Pass car capacity
+        _hasBikeCharger ? _bikeCapacityController.text.trim() : null, // Pass bike capacity
       );
     }
   }
@@ -159,7 +167,27 @@ class _AddStationFormState extends State<AddStationForm> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+            if (_hasCarCharger)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: TextFormField(
+                  controller: _carCapacityController,
+                  decoration: _inputDecoration('Car Charger Capacity (e.g., 60KW)', theme),
+                  validator: (v) => _hasCarCharger && (v == null || v.trim().isEmpty) ? 'Car capacity is required' : null,
+                ),
+              ),
+            if (_hasBikeCharger)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: TextFormField(
+                  controller: _bikeCapacityController,
+                  decoration: _inputDecoration('Bike Charger Capacity (e.g., 15KW)', theme),
+                  validator: (v) => _hasBikeCharger && (v == null || v.trim().isEmpty) ? 'Bike capacity is required' : null,
+                ),
+              ),
+            
+            const SizedBox(height: 16), // Adjusted spacing if both capacity fields are shown
 
             ElevatedButton(
               onPressed: _submitForm,

@@ -86,7 +86,7 @@ class _EnzivoWelcomeScreenState extends State<EnzivoWelcomeScreen> {
                 children: <Widget>[
                   const Spacer(flex: 3),
                   Image.asset(
-                    'assets/applogo.png',
+                    'assets/ENZIVO_LOGO.png', // Changed to ENZIVO_LOGO.png
                     height: 250,
                   ),
                   const SizedBox(height: 20),

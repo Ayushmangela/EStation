@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Added import
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/supabase_config.dart';
@@ -43,8 +44,14 @@ Future<void> main() async {
     return;
   }
 
-  // 🚀 Always launch with Onboarding first
-  runApp(const MyApp());
+  // Check if onboarding is complete
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  final bool onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+  final String initialRoute = onboardingComplete ? '/welcome' : '/onboarding';
+  print('DEBUG main.dart: Initial route determined: $initialRoute');
+
+  // 🚀 Launch with determined initial route
+  runApp(MyApp(initialRoute: initialRoute));
 }
 
 // Supabase client instance

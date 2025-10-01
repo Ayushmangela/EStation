@@ -4,6 +4,7 @@ import 'package:testing/src/presentation/pages/auth_view.dart';
 import 'admin_station_service.dart';
 import 'add_station_form.dart'; // Import the new form
 
+
 // --- Data Model ---
 class Station {
   final int stationId;
@@ -11,8 +12,10 @@ class Station {
   final String address;
   final double latitude;
   final double longitude;
-  final bool hasBikeCharger;
-  final bool hasCarCharger;
+  final bool hasBikeCharger; // This could potentially be derived from bikeChargerCapacity != null
+  final bool hasCarCharger;  // This could potentially be derived from carChargerCapacity != null
+  final String? carChargerCapacity; // New field for car charger capacity string (e.g., "60KW")
+  final String? bikeChargerCapacity; // New field for bike charger capacity string (e.g., "15KW")
   final String status;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -25,20 +28,27 @@ class Station {
     required this.longitude,
     required this.hasBikeCharger,
     required this.hasCarCharger,
+    this.carChargerCapacity, // Added to constructor
+    this.bikeChargerCapacity, // Added to constructor
     required this.status,
     required this.createdAt,
     required this.updatedAt,
   });
 
-  factory Station.fromMap(Map<String, dynamic> map) {
+  // The fromMap will be populated in two stages:
+  // 1. Basic station data from 'charging_stations' table.
+  // 2. Capacity data from 'station_charger_capacity' table (done by the service layer).
+  factory Station.fromMap(Map<String, dynamic> map, {String? carCapacity, String? bikeCapacity}) {
     return Station(
       stationId: map['station_id'] as int,
       name: map['name'] as String,
       address: map['address'] as String,
       latitude: (map['latitude'] as num).toDouble(),
       longitude: (map['longitude'] as num).toDouble(),
-      hasBikeCharger: map['has_bike_charger'] as bool? ?? false,
-      hasCarCharger: map['has_car_charger'] as bool? ?? false,
+      hasBikeCharger: map['has_bike_charger'] as bool? ?? false, // Keep for now
+      hasCarCharger: map['has_car_charger'] as bool? ?? false, // Keep for now
+      carChargerCapacity: carCapacity, // Populate with fetched capacity
+      bikeChargerCapacity: bikeCapacity, // Populate with fetched capacity
       status: map['status'] as String? ?? 'unknown',
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
@@ -87,11 +97,37 @@ class _ManageStationsViewState extends State<ManageStationsView> {
   }
 
   Future<List<Station>> _fetchStations() async {
-    final response = await Supabase.instance.client
+    // 1. Fetch all stations
+    final stationsResponse = await Supabase.instance.client
         .from('charging_stations')
         .select()
         .order('created_at', ascending: false);
-    return (response as List).map((map) => Station.fromMap(map)).toList();
+
+    final List<Station> stations = [];
+    for (final stationMap in (stationsResponse as List)) {
+      final stationId = stationMap['station_id'] as int;
+
+      // 2. Fetch capacities for this station
+      String? carCapacity;
+      String? bikeCapacity;
+
+      final capacitiesResponse = await Supabase.instance.client
+          .from('station_charger_capacity')
+          .select('vehicle_type, capacity_value')
+          .eq('station_id', stationId);
+
+      for (final capMap in (capacitiesResponse as List)) {
+        final type = capMap['vehicle_type'] as String?;
+        final value = capMap['capacity_value'] as String?;
+        if (type == 'car') {
+          carCapacity = value;
+        } else if (type == 'bike') {
+          bikeCapacity = value;
+        }
+      }
+      stations.add(Station.fromMap(stationMap, carCapacity: carCapacity, bikeCapacity: bikeCapacity));
+    }
+    return stations;
   }
 
   void _refreshStations() {
@@ -113,11 +149,13 @@ class _ManageStationsViewState extends State<ManageStationsView> {
     );
   }
 
-  void _addStation(String name, String address, double latitude, double longitude, bool hasBikeCharger, bool hasCarCharger, String status) async {
+  void _addStation(String name, String address, double latitude, double longitude, bool hasBikeCharger, bool hasCarCharger, String status, String? carChargerCapacity, String? bikeChargerCapacity) async {
     try {
       await _adminStationService.addStation(
         name: name, address: address, latitude: latitude, longitude: longitude,
         hasBikeCharger: hasBikeCharger, hasCarCharger: hasCarCharger, status: status,
+        carChargerCapacity: carChargerCapacity, // Pass capacity
+        bikeChargerCapacity: bikeChargerCapacity, // Pass capacity
       );
       _showFeedback('$name has been added.', false);
       _refreshStations();
@@ -127,11 +165,13 @@ class _ManageStationsViewState extends State<ManageStationsView> {
     }
   }
 
-  void _updateStation(int stationId, String name, String address, double latitude, double longitude, bool hasBikeCharger, bool hasCarCharger, String status) async {
+  void _updateStation(int stationId, String name, String address, double latitude, double longitude, bool hasBikeCharger, bool hasCarCharger, String status, String? carChargerCapacity, String? bikeChargerCapacity) async {
     try {
       await _adminStationService.updateStation(
         stationId: stationId, name: name, address: address, latitude: latitude, longitude: longitude,
         hasBikeCharger: hasBikeCharger, hasCarCharger: hasCarCharger, status: status,
+        carChargerCapacity: carChargerCapacity, // Pass capacity
+        bikeChargerCapacity: bikeChargerCapacity, // Pass capacity
       );
       _showFeedback('$name has been updated.', false);
       _refreshStations();
@@ -174,6 +214,7 @@ class _ManageStationsViewState extends State<ManageStationsView> {
   void _deleteStation(int stationId, String stationName) async {
     try {
       await _adminStationService.deleteStation(stationId: stationId);
+      // Note: AdminStationService.deleteStation now handles deleting from station_charger_capacity
       _showFeedback('$stationName has been deleted.', false);
       _refreshStations();
       setState(() {
@@ -273,7 +314,9 @@ class _ManageStationsViewState extends State<ManageStationsView> {
       case AdminView.add:
         return AddStationForm(
           key: const ValueKey('add'),
-          onSave: _addStation,
+          onSave: (name, address, lat, long, hasBike, hasCar, status, carCap, bikeCap) {
+            _addStation(name, address, lat, long, hasBike, hasCar, status, carCap, bikeCap);
+          },
           onCancel: () => setState(() => _currentView = AdminView.manage),
         );
       case AdminView.edit:
@@ -281,8 +324,8 @@ class _ManageStationsViewState extends State<ManageStationsView> {
           return AddStationForm(
             key: ValueKey('edit_form_${_editingStation!.stationId}'),
             stationToEdit: _editingStation,
-            onSave: (name, address, lat, long, hasBike, hasCar, status) {
-              _updateStation(_editingStation!.stationId, name, address, lat, long, hasBike, hasCar, status);
+            onSave: (name, address, lat, long, hasBike, hasCar, status, carCap, bikeCap) {
+              _updateStation(_editingStation!.stationId, name, address, lat, long, hasBike, hasCar, status, carCap, bikeCap);
             },
             onCancel: () {
               setState(() {
@@ -458,13 +501,13 @@ class _ManageStationsViewState extends State<ManageStationsView> {
                     if (station.hasCarCharger) ...[
                       Icon(Icons.directions_car_filled_rounded, size: 18, color: Colors.blueGrey[600]),
                       const SizedBox(width: 4),
-                      Text('Car', style: theme.textTheme.bodySmall?.copyWith(color: Colors.blueGrey[700])),
-                      if (station.hasBikeCharger) const SizedBox(width: 12),
+                      Text(station.carChargerCapacity ?? 'Car', style: theme.textTheme.bodySmall?.copyWith(color: Colors.blueGrey[700])), // Display capacity
+                      if (station.hasBikeCharger || (station.bikeChargerCapacity != null && station.bikeChargerCapacity!.isNotEmpty)) const SizedBox(width: 12), // Adjusted condition
                     ],
                     if (station.hasBikeCharger) ...[
                       Icon(Icons.two_wheeler_rounded, size: 18, color: Colors.blueGrey[600]),
                       const SizedBox(width: 4),
-                      Text('Bike', style: theme.textTheme.bodySmall?.copyWith(color: Colors.blueGrey[700])),
+                      Text(station.bikeChargerCapacity ?? 'Bike', style: theme.textTheme.bodySmall?.copyWith(color: Colors.blueGrey[700])), // Display capacity
                     ],
                   ],
                 )

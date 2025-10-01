@@ -1,6 +1,7 @@
 // onboarding_view.dart
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Added import
 import '../../data/models/onboarding_page.dart';
 import 'welcome_page.dart';
 
@@ -15,12 +16,11 @@ class _OnboardingViewState extends State<OnboardingView> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // --- STEP 2: DEFINE UNIQUE SIZE/POSITION FOR EACH PAGE HERE ---
   final List<OnboardingPage> _pages = [
     // Page 1: Charge Station
     OnboardingPage(
-      title: "Get your smart life with\nsmart bike",
-      description: "The future of transportation is electric, and we're here to help you get there.",
+      title: "Power Up Your Ride",
+      description: "Welcome to the future of transportation. Easily find and use smart charging stations for your electric vehicle.",
       image: "assets/Charge_station.png",
       color: const Color(0xFF4CAF50),
       imageHeight: 400,
@@ -30,8 +30,8 @@ class _OnboardingViewState extends State<OnboardingView> {
     ),
     // Page 2: Car and Scooty
     OnboardingPage(
-      title: "Eco-friendly\nTransportation",
-      description: "Reduce your carbon footprint while enjoying a smooth and efficient ride.",
+      title: "Electric Ride",
+      description: "Whether you're on two wheels or four, our network supports all electric vehicles.\nFind the perfect spot to recharge",
       image: "assets/carscooty.png",
       color: const Color(0xFF4CAF50),
       imageHeight: 400, // Shorter image
@@ -41,8 +41,8 @@ class _OnboardingViewState extends State<OnboardingView> {
     ),
     // Page 3: Map Mobile View
     OnboardingPage(
-      title: "Smart Features\nfor Smart Living",
-      description: "GPS tracking, battery monitoring, and smart connectivity at your fingertips.",
+      title: "Find, Charge and Go",
+      description: "Instantly find available chargers and get directions. Your entire journey, all on our map.",
       image: "assets/map_mobileview.png",
       color: const Color(0xFF4CAF50),
       imageHeight: 400, // Taller image
@@ -73,10 +73,16 @@ class _OnboardingViewState extends State<OnboardingView> {
     _finishOnboarding();
   }
 
-  void _finishOnboarding() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const EnzivoWelcomeScreen()),
-    );
+  // Modified to save onboarding completion state
+  Future<void> _finishOnboarding() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboardingComplete', true);
+
+    if (mounted) { // Check if the widget is still in the tree
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const EnzivoWelcomeScreen()),
+      );
+    }
   }
 
   @override

@@ -1,0 +1,204 @@
+**1. Use Case Diagram**
+
+*   **Prompt:**
+    "Create a Use Case Diagram for an EV Charging Station Finder application.
+    **Actors:**
+    *   `User` (Represents a general app user)
+    *   `Admin` (Represents an administrator of the system)
+
+    **Use Cases for `User`:**
+    *   `View Stations on Map` (Includes seeing station locations and basic info)
+    *   `Search/Filter Stations` (By name, address, potentially other criteria)
+    *   `View Station Details` (Includes address, status, amenities, charger types and capacities)
+    *   `Book Charging Slot` (For available stations)
+    *   `View Own Bookings`
+    *   `Manage Favorite Stations` (Add/Remove stations from a personal list)
+    *   `Get Directions to Station`
+    *   `View Profile` (User's own profile)
+    *   `Register/Login`
+
+    **Use Cases for `Admin`:**
+    *   `Manage Stations` (This can be a parent use case)
+        *   Includes: `Add New Station`
+        *   Includes: `View/Edit Station Details` (all properties including capacities)
+        *   Includes: `Delete Station`
+    *   `View All User Bookings` (Potentially, for system monitoring)
+    *   `View System Dashboard/Analytics` (General admin overview - if planned)
+    *   `Login as Admin`
+
+    **Relationships:**
+    *   The `Admin` actor can perform all use cases available to the `User` (e.g., Admin can also View Stations on Map). You can show this via generalization if your tool supports it, or just list overlapping use cases if simpler.
+    *   Show primary associations between actors and their respective use cases.
+    *   The `Manage Stations` use case can be shown to `include` the sub-use cases like `Add New Station`, `Edit Station`, `Delete Station`."
+
+**2. Class Diagram**
+
+*   **Prompt:**
+    "Generate a Class Diagram for a Flutter EV Charging application with Supabase integration.
+
+    **Key Classes & Interfaces:**
+
+    *   **Data Models:**
+        *   `Station`:
+            *   Attributes: `stationId: int`, `name: String`, `address: String`, `latitude: double`, `longitude: double`, `operator: String?`, `hasBikeCharger: bool`, `hasCarCharger: bool`, `status: String`, `createdAt: DateTime`, `updatedAt: DateTime`, `carChargerCapacity: String?`, `bikeChargerCapacity: String?`.
+            *   Methods: `fromMap(Map<String, dynamic>, {String? carCapacity, String? bikeCapacity}): Station`.
+    *   **Service Layer (interacting with Supabase):**
+        *   `MapService`:
+            *   Attributes: `_supabaseClient: SupabaseClient`.
+            *   Methods: `fetchStations(): Future<List<Station>>`, `fetchStationsWithDistance(): Future<List<Map<String, dynamic>>>`.
+        *   `AdminStationService`:
+            *   Attributes: `_supabaseClient: SupabaseClient`.
+            *   Methods: `addStation(...)`, `updateStation(...)`, `deleteStation(stationId: int)`.
+        *   `FavoritesService`:
+            *   Attributes: `_supabaseClient: SupabaseClient`.
+            *   Methods: `addFavorite(userId: String, stationId: int)`, `removeFavorite(userId: String, stationId: int)`, `isFavorite(userId: String, stationId: int): Future<bool>`.
+        *   `BookingService` (Conceptual, based on `user_bookings` table):
+            *   Attributes: `_supabaseClient: SupabaseClient`.
+            *   Methods: `createBooking(...)`, `fetchUserBookings(userId: String)`.
+    *   **Controller/Helper Classes:**
+        *   `MapController`:
+            *   Attributes: `_mapService: MapService`, `_markers: Set<Marker>`, `_stationsData: List<Map<String, dynamic>>`, `_stationIcon: BitmapDescriptor?`.
+            *   Methods: `loadStations(LatLng? userPosition, StationTapCallback onStationTapped): Future<bool>`, `markers: Set<Marker> (getter)`, `stations: List<Map<String, dynamic>> (getter)`.
+    *   **UI Layer (Flutter Widgets - key views):**
+        *   `UserHomeView` (StatefulWidget): Manages main navigation.
+        *   `UserMapView` (StatefulWidget):
+            *   Attributes: `_mapControllerHelper: MapController`, `_selectedStationDataMap: Map<String, dynamic>?`, `_favoritesService: FavoritesService`.
+            *   Methods: `build()`, `onStationSelectedCallback(Map<String, dynamic>)`, `_initializeMap()`.
+        *   `StationView` (StatefulWidget):
+            *   Attributes: `station: Station`, `isAdmin: bool`, `_favoritesService: FavoritesService`.
+            *   Methods: `build()`, `_toggleFavorite()`.
+        *   `BookingView` (StatefulWidget): (Based on `user_bookings` table)
+            *   Attributes: `stationId: int`.
+            *   Methods: `build()`, `_submitBooking()`.
+        *   `ManageStationsView` (Admin - StatefulWidget):
+            *   Attributes: `_adminStationService: AdminStationService`, `_stationsFuture: Future<List<Station>>?`.
+            *   Methods: `build()`, `_fetchStations()`, `_addStation(...)`, `_updateStation(...)`.
+        *   `AddStationForm` (Admin - StatefulWidget):
+            *   Attributes: `stationToEdit: Station?`, `onSave: Function`, `onCancel: Function`.
+            *   Methods: `build()`, `_saveForm()`.
+        *   `StationCard` (StatelessWidget): Presentational component for station summaries.
+            *   Attributes: `stationId: int`, `name: String`, `address: String`, `distanceKm: double?`, etc.
+    *   **External Dependencies/Libraries (show as stereotyped classes or notes):**
+        *   `SupabaseClient` (from Supabase Flutter library)
+        *   `GoogleMapController` (from google_maps_flutter)
+        *   `Geolocator` (for location services)
+
+    **Relationships:**
+    *   `UserMapView` *uses* a `MapController`.
+    *   `UserMapView` and `StationView` *use* `FavoritesService`.
+    *   `MapController` *uses* `MapService`.
+    *   `MapService`, `AdminStationService`, `FavoritesService`, `BookingService` *depend on* `SupabaseClient` (association).
+    *   `ManageStationsView` *uses* `AdminStationService`.
+    *   `ManageStationsView` *creates/uses* `AddStationForm`.
+    *   `UserMapView` (and potentially `StationView`) *displays data from* `Station` objects (often via the `_selectedStationDataMap` or `_stationsData` which wrap `Station` objects).
+    *   `StationCard` *displays data from* a `Station` object (or parts of the `stationDataMap`).
+    *   `UserMapView` *interacts with* `GoogleMapController`.
+    *   Show parameters and return types for key methods.
+    *   Indicate navigations between views (e.g., `UserMapView` can navigate to `StationView` and `BookingView`)."
+
+**3. Sequence Diagram**
+
+*   **Prompt for "User Views Stations on Map":**
+    "Create a Sequence Diagram for the 'User Views Stations on Map' scenario.
+    **Lifelines (Objects):**
+    *   `:User` (Actor)
+    *   `:UserMapView`
+    *   `:MapController`
+    *   `:MapService`
+    *   `:SupabaseClient` (representing the database interface)
+    *   `:GoogleMapWidget` (UI element)
+
+    **Sequence of Messages:**
+    1.  User interacts to open `UserMapView`.
+    2.  `UserMapView` calls `_initializeMap()`.
+    3.  `UserMapView` (within `_initializeMap`) calls `_mapControllerHelper.loadStations(userPosition, onStationSelectedCallback)`.
+    4.  `MapController` calls `_mapService.fetchStationsWithDistance()`.
+    5.  `MapService` calls its internal `fetchStations()`.
+    6.  `MapService` (in `fetchStations`) sends `select()` request for `charging_stations` to `:SupabaseClient`.
+    7.  `:SupabaseClient` returns `stationMaps (List<Map<String, dynamic>>)` to `MapService`.
+    8.  Loop for each stationMap in `stationMaps`:
+        *   `MapService` sends `select()` request for `station_charger_capacity` (filtered by station_id) to `:SupabaseClient`.
+        *   `:SupabaseClient` returns `capacityData` to `MapService`.
+        *   `MapService` creates a `Station` object.
+    9.  `MapService` (in `fetchStations`) returns `List<Station>` to its `fetchStationsWithDistance` method.
+    10. `MapService` (in `fetchStationsWithDistance`) calculates distances (potentially using `Geolocator`).
+    11. `MapService` returns `List<Map<String, dynamic>>` (station data with distances) to `MapController`.
+    12. `MapController` processes this list, creates `Marker` objects for each station.
+    13. `UserMapView` retrieves `markers` from `MapController`.
+    14. `UserMapView` updates `:GoogleMapWidget` with markers.
+    15. `:GoogleMapWidget` displays markers to `:User`."
+
+*   **Prompt for "Admin Adds a New Station":**
+    "Create a Sequence Diagram for the 'Admin Adds a New Station' scenario.
+    **Lifelines (Objects):**
+    *   `:Admin` (Actor)
+    *   `:ManageStationsView`
+    *   `:AddStationForm`
+    *   `:AdminStationService`
+    *   `:SupabaseClient`
+
+    **Sequence of Messages:**
+    1.  Admin navigates to `ManageStationsView` and clicks 'Add Station'.
+    2.  `ManageStationsView` creates and displays `:AddStationForm`.
+    3.  Admin fills the form in `:AddStationForm` and clicks 'Save'.
+    4.  `:AddStationForm` calls `onSave(name, address, lat, lon, hasBike, hasCar, status, carCapacity, bikeCapacity)` which is a method on `:ManageStationsView` (passed as a callback).
+    5.  `:ManageStationsView` calls `_addStation(name, ..., bikeCapacity)` on itself.
+    6.  `:ManageStationsView` (in `_addStation`) calls `_adminStationService.addStation(name: ..., bikeChargerCapacity: ...)`.
+    7.  `:AdminStationService` calls `insert()` for `charging_stations` table on `:SupabaseClient` with basic station data.
+    8.  `:SupabaseClient` returns the `newStationId`.
+    9.  If `carCapacity` is provided, `:AdminStationService` calls `insert()` for `station_charger_capacity` table (with `newStationId`, `vehicle_type='car'`, `capacity_value=carCapacity`) on `:SupabaseClient`.
+    10. `:SupabaseClient` confirms car capacity insertion.
+    11. If `bikeCapacity` is provided, `:AdminStationService` calls `insert()` for `station_charger_capacity` table (with `newStationId`, `vehicle_type='bike'`, `capacity_value=bikeCapacity`) on `:SupabaseClient`.
+    12. `:SupabaseClient` confirms bike capacity insertion.
+    13. `:AdminStationService` returns success to `:ManageStationsView`.
+    14. `:ManageStationsView` calls `_refreshStations()` and shows a success message to `:Admin`."
+
+**4. Activity Diagram**
+
+*   **Prompt for "User Books a Charging Slot":**
+    "Create an Activity Diagram for the 'User Books a Charging Slot' process.
+    **Partitions/Swimlanes (Optional, but good for clarity):** User, System (App), Database (Supabase)
+
+    **Activities & Flow:**
+    1.  Start Node.
+    2.  Activity: User selects a station (from map or list).
+    3.  Activity: System displays station details.
+    4.  Decision Node: Is station `status` 'available'?
+        *   [No] -> Activity: System displays 'Station Offline' message. -> End Node.
+        *   [Yes] -> Activity: User clicks 'Book a Slot' button.
+    5.  Activity: System navigates to `BookingView`.
+    6.  Activity: User inputs booking details (e.g., vehicle type, date, time).
+    7.  Activity: User submits booking.
+    8.  Activity: System attempts to insert booking into `user_bookings` table in Database.
+    9.  Decision Node: Booking successful in Database?
+        *   [Yes] -> Activity: System displays 'Booking Confirmed' message to User.
+        *   [No] -> Activity: System displays 'Booking Failed' message to User.
+    10. End Node."
+
+**5. Collaboration Diagram (Communication Diagram)**
+
+*   **Prompt for "User Views Stations on Map":**
+    "Create a Collaboration Diagram (or Communication Diagram) for the 'User Views Stations on Map' interaction.
+    **Objects (Participants):**
+    *   `:UserMapView`
+    *   `:MapController`
+    *   `:MapService`
+    *   `:SupabaseClient`
+    *   `(External) GoogleMapUI`
+
+    **Links (Connectors showing ability to communicate):**
+    *   Link between `:UserMapView` and `:MapController`.
+    *   Link between `:MapController` and `:MapService`.
+    *   Link between `:MapService` and `:SupabaseClient`.
+    *   Link between `:UserMapView` and `GoogleMapUI`.
+
+    **Messages (numbered, on the links, showing interactions):**
+    1.  `:UserMapView` -> `:MapController`: `loadStations(userPosition, callback)`
+    2.  `:MapController` -> `:MapService`: `fetchStationsWithDistance()`
+    3.  `:MapService` -> `:SupabaseClient`: `select(from: 'charging_stations')`
+    4.  `:SupabaseClient` --returns--> `:MapService`: `rawStationData`
+    5.  `:MapService` -> `:SupabaseClient`: `select(from: 'station_charger_capacity', where: station_id)` (potentially multiple calls)
+    6.  `:SupabaseClient` --returns--> `:MapService`: `capacityData`
+    7.  `:MapService` --returns--> `:MapController`: `List<Map{'station':Station, 'distance':double}>`
+    8.  `:MapController` --provides (e.g., via getter)--> `:UserMapView`: `markers`
+    9.  `:UserMapView` -> `GoogleMapUI`: `updateMarkers(markers)`"

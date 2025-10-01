@@ -10,29 +10,43 @@ class AdminStationService {
     required String address,
     required double latitude,
     required double longitude,
-    // required String? operator, // Removed operator
     required bool hasBikeCharger,
     required bool hasCarCharger,
     required String status,
+    String? carChargerCapacity, // New parameter
+    String? bikeChargerCapacity, // New parameter
   }) async {
     try {
-      final response = await _supabase.from('charging_stations').insert({
+      final stationResponse = await _supabase.from('charging_stations').insert({
         'name': name,
         'address': address,
         'latitude': latitude,
         'longitude': longitude,
-        // 'operator': operator, // Removed operator
         'has_bike_charger': hasBikeCharger,
         'has_car_charger': hasCarCharger,
         'status': status,
-      }).select();
+      }).select().single(); // Use single() to get one record or throw
 
-      if (response.isEmpty) {
-        throw Exception('Failed to add station, no data returned.');
+      final stationId = stationResponse['station_id'] as int;
+
+      if (carChargerCapacity != null && carChargerCapacity.isNotEmpty) {
+        await _supabase.from('station_charger_capacity').insert({
+          'station_id': stationId,
+          'vehicle_type': 'car',
+          'capacity_value': carChargerCapacity,
+        });
       }
-      return response[0];
+      if (bikeChargerCapacity != null && bikeChargerCapacity.isNotEmpty) {
+        await _supabase.from('station_charger_capacity').insert({
+          'station_id': stationId,
+          'vehicle_type': 'bike',
+          'capacity_value': bikeChargerCapacity,
+        });
+      }
+
+      return stationResponse;
     } catch (e) {
-      print('Error adding station: $e');
+      print('Error adding station or capacities: $e');
       rethrow;
     }
   }
@@ -43,46 +57,79 @@ class AdminStationService {
     required String address,
     required double latitude,
     required double longitude,
-    // String? operator, // Removed operator
     required bool hasBikeCharger,
     required bool hasCarCharger,
     required String status,
+    String? carChargerCapacity, // New parameter
+    String? bikeChargerCapacity, // New parameter
   }) async {
     try {
-      final response = await _supabase
+      final stationResponse = await _supabase
           .from('charging_stations')
           .update({
             'name': name,
             'address': address,
             'latitude': latitude,
             'longitude': longitude,
-            // 'operator': operator, // Removed operator
             'has_bike_charger': hasBikeCharger,
             'has_car_charger': hasCarCharger,
             'status': status,
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('station_id', stationId)
-          .select();
+          .select()
+          .single(); // Use single()
 
-      if (response.isEmpty) {
-        throw Exception('Failed to update station, no data returned or station not found.');
+      // Update car charger capacity
+      await _supabase
+          .from('station_charger_capacity')
+          .delete()
+          .eq('station_id', stationId)
+          .eq('vehicle_type', 'car');
+      if (carChargerCapacity != null && carChargerCapacity.isNotEmpty) {
+        await _supabase.from('station_charger_capacity').insert({
+          'station_id': stationId,
+          'vehicle_type': 'car',
+          'capacity_value': carChargerCapacity,
+        });
       }
-      return response[0];
+
+      // Update bike charger capacity
+      await _supabase
+          .from('station_charger_capacity')
+          .delete()
+          .eq('station_id', stationId)
+          .eq('vehicle_type', 'bike');
+      if (bikeChargerCapacity != null && bikeChargerCapacity.isNotEmpty) {
+        await _supabase.from('station_charger_capacity').insert({
+          'station_id': stationId,
+          'vehicle_type': 'bike',
+          'capacity_value': bikeChargerCapacity,
+        });
+      }
+      
+      return stationResponse;
     } catch (e) {
-      print('Error updating station: $e');
+      print('Error updating station or capacities: $e');
       rethrow;
     }
   }
 
   Future<void> deleteStation({required int stationId}) async {
     try {
+      // First, delete related capacities
+      await _supabase
+          .from('station_charger_capacity')
+          .delete()
+          .eq('station_id', stationId);
+
+      // Then, delete the station itself
       await _supabase
           .from('charging_stations')
           .delete()
           .eq('station_id', stationId);
     } catch (e) {
-      print('Error deleting station: $e');
+      print('Error deleting station and/or capacities: $e');
       rethrow;
     }
   }

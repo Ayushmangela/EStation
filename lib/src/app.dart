@@ -9,11 +9,13 @@ import 'presentation/pages/onboarding_view.dart';
 import 'presentation/pages/forgot_password_view.dart';
 import 'features/admin/dashboard/admin_home_view.dart';
 import 'features/user/home/user_home_view.dart';
-// import 'presentation/pages/auth_view.dart'; // Removed as AuthView is now part of WelcomeScreen
 import 'presentation/pages/welcome_page.dart'; // Added for EnzivoWelcomeScreen
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialRoute; // Added field
+
+  // Modified constructor to accept initialRoute
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +47,7 @@ class MyApp extends StatelessWidget {
       ),
       // Add appRouteObserver to navigatorObservers
       navigatorObservers: [appRouteObserver],
-      initialRoute: '/onboarding',
+      initialRoute: initialRoute, // Use the passed initialRoute
       routes: {
         '/onboarding': (context) => const OnboardingView(),
         '/welcome': (context) => const EnzivoWelcomeScreen(), // Added route for WelcomeScreen

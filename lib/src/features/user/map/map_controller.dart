@@ -4,31 +4,25 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart'; // Added import
+// import 'package:geolocator/geolocator.dart'; // Not needed here if MapService handles distance
 import 'map_service.dart';
+import '../../admin/station_management/manage_stations_view.dart'; // For Station model
 
-typedef StationTapCallback = void Function(Map<String, dynamic> station);
+// This callback will pass the map containing both the Station object and its distance
+typedef StationTapCallback = void Function(Map<String, dynamic> stationDataMap);
 
 class MapController {
   final MapService _mapService;
   final Set<Marker> _markers = {};
-  List<Map<String, dynamic>> _stations = [];
-  BitmapDescriptor? _stationIcon; // Custom icon
+  List<Map<String, dynamic>> _stationsData = []; // Stores maps like {'station': Station, 'distance': double}
+  BitmapDescriptor? _stationIcon;
 
   MapController(this._mapService);
 
   Set<Marker> get markers => _markers;
-  List<Map<String, dynamic>> get stations => _stations;
-
-  // User's provided distance calculation function
-  double calculateDistanceKm(
-      double userLat, double userLng, double stationLat, double stationLng) {
-    // distanceBetween returns meters
-    double distanceMeters = Geolocator.distanceBetween(
-        userLat, userLng, stationLat, stationLng);
-    double distanceKm = distanceMeters / 1000; // convert to km
-    return distanceKm;
-  }
+  // This getter provides the list of maps (station object + distance)
+  // UserMapView's list view and search will use this.
+  List<Map<String, dynamic>> get stations => _stationsData;
 
   Future<BitmapDescriptor> _resizeAndLoadMarker(
       String assetPath, int width, int height) async {
@@ -40,10 +34,8 @@ class MapController {
     );
     final ui.FrameInfo frameInfo = await codec.getNextFrame();
     final ui.Image resizedImage = frameInfo.image;
-
     final ByteData? byteData =
-    await resizedImage.toByteData(format: ui.ImageByteFormat.png);
-
+        await resizedImage.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.fromBytes(byteData!.buffer.asUint8List());
   }
 
@@ -61,63 +53,59 @@ class MapController {
     }
   }
 
-  // Modified to accept userPosition
-  Future<bool> loadStations(LatLng? userPosition, StationTapCallback onStationTapped) async {
+  Future<bool> loadStations(
+      LatLng? userPosition, StationTapCallback onStationTapped) async {
     debugPrint("[MapController] loadStations STARTED");
 
     if (_stationIcon == null) {
       await _loadMarkerIcon();
     }
 
-    final fetchedStations = await _mapService.fetchStations();
+    // Fetch stations already processed with distance from the service
+    // This returns List<Map<String, dynamic>> where each map is {'station': Station, 'distance': double}
+    _stationsData = await _mapService.fetchStationsWithDistance(); 
+    // No need to call _mapService.fetchStations() separately or calculate distance here
 
     _markers.clear();
-    _stations = List<Map<String, dynamic>>.from(fetchedStations);
 
-    for (var stationData in _stations) {
-      final String stationIdString =
-          stationData['station_id']?.toString() ??
-              'station_${DateTime.now().millisecondsSinceEpoch}_${_markers.length}';
-      
-      final LatLng stationLatLng = stationData['position'] as LatLng? ?? const LatLng(0, 0);
-      double? distanceKm;
+    if (_stationsData.isEmpty) {
+      debugPrint("[MapController] No stations fetched or an error occurred in MapService.");
+      return false;
+    }
 
-      if (userPosition != null) {
-        distanceKm = calculateDistanceKm(
-            userPosition.latitude, userPosition.longitude, stationLatLng.latitude, stationLatLng.longitude);
-        stationData['distance'] = distanceKm; // Save to station map for later use in StationCard
-      }
+    for (var stationMapEntry in _stationsData) {
+      final Station stationObject = stationMapEntry['station'] as Station;
+      final double? distanceKm = stationMapEntry['distance'] as double?;
+
+      final String stationIdString = stationObject.stationId.toString();
+      final LatLng stationLatLng = LatLng(stationObject.latitude, stationObject.longitude);
 
       _markers.add(
         Marker(
           markerId: MarkerId(stationIdString),
           position: stationLatLng,
           infoWindow: InfoWindow(
-            title: stationData['name'] as String?,
+            title: stationObject.name,
             snippet: distanceKm != null
-                ? "${distanceKm.toStringAsFixed(2)} km away"
-                : stationData['address'] as String?, // Fallback to address if distance not available
+                ? "${distanceKm.toStringAsFixed(1)} km away"
+                : stationObject.address,
           ),
           icon: _stationIcon ?? BitmapDescriptor.defaultMarker,
-          onTap: () => onStationTapped(stationData),
+          // Pass the whole map entry, so UserMapView can access both station and distance
+          onTap: () => onStationTapped(stationMapEntry), 
         ),
       );
     }
-
-    // Sort stations by distance if userPosition is available
-    if (userPosition != null) {
-      _stations.sort((a, b) {
-        final distA = a['distance'] as double?;
-        final distB = b['distance'] as double?;
-        if (distA == null && distB == null) return 0;
-        if (distA == null) return 1; // stations with no distance go last
-        if (distB == null) return -1; // stations with no distance go last
-        return distA.compareTo(distB);
-      });
-    }
     
-    debugPrint("Stations loaded: ${_stations.length}");
-    debugPrint("Markers loaded: ${_markers.length}");
+    // Sorting is already handled by fetchStationsWithDistance if it uses user location,
+    // or can be done here if needed based on the 'distance' key.
+    // Assuming MapService.fetchStationsWithDistance already sorts or we sort if userPosition is non-null.
+    // If MapService doesn't sort, and userPosition is available, we can sort _stationsData here:
+    // _stationsData.sort((a,b) => (a['distance'] as double? ?? double.infinity).compareTo(b['distance'] as double? ?? double.infinity));
+
+
+    debugPrint("[MapController] Stations processed: ${_stationsData.length}");
+    debugPrint("[MapController] Markers created: ${_markers.length}");
     return true;
   }
 }
