@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Your import paths
@@ -201,6 +203,11 @@ class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
         final userType = await _authController.getUserTypeByEmail(email);
         if (userType != null) {
           if (!mounted) return;
+
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isLoggedIn', true);
+          await prefs.setString('userRole', userType.toLowerCase().trim());
+
           // SUCCESS! Navigate and exit.
           if (userType.toLowerCase().trim() == 'admin') {
             Navigator.of(context).pushAndRemoveUntil(
@@ -220,15 +227,22 @@ class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
       } else {
         errorMessage = "Login failed. Please check your credentials.";
       }
+    } on SocketException {
+      errorMessage = "No internet connection. Please check your network and try again.";
+    } on AuthException catch (e) {
+      if (e.message.contains('Failed host lookup')) {
+        errorMessage = "No internet connection. Please check your network and try again.";
+      } else {
+        errorMessage = e.message;
+      }
     } catch (e) {
-      errorMessage = "An error occurred during login: $e";
+      errorMessage = 'An unexpected error occurred. Please try again.';
     }
 
     // If we reach here, it means login failed or an error occurred.
-    // The widget is still mounted, so we can safely update the state.
-    if (mounted) {
+    if (mounted && errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage ?? "An unknown error occurred.")),
+        SnackBar(content: Text(errorMessage)),
       );
       setState(() => _isLoading = false);
     }
@@ -255,6 +269,10 @@ class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
         phone: _phoneController.text.trim(),
       );
       if (user != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('userRole', 'user');
+
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const UserHomeView()),
               (route) => false,
@@ -264,11 +282,29 @@ class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
           const SnackBar(content: Text("Signup failed. Try again.")),
         );
       }
+    } on SocketException {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No internet connection. Please check your network and try again.')),
+          );
+        }
+    } on AuthException catch (e) {
+      if (mounted) {
+        if (e.message.contains('Failed host lookup')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No internet connection. Please check your network and try again.')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message)),
+          );
+        }
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e")),
-        );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('An unexpected error occurred. Please try again.')),
+          );
       }
     } finally {
       if (mounted) {

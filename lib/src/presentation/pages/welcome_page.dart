@@ -86,7 +86,7 @@ class _EnzivoWelcomeScreenState extends State<EnzivoWelcomeScreen> {
                 children: <Widget>[
                   const Spacer(flex: 3),
                   Image.asset(
-                    'assets/ENZIVO_LOGO.png', // Changed to ENZIVO_LOGO.png
+                    'assets/ENZIVO_LOGO.png',
                     height: 250,
                   ),
                   const SizedBox(height: 20),
@@ -167,9 +167,11 @@ class _EnzivoWelcomeScreenState extends State<EnzivoWelcomeScreen> {
                   child: IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
                     onPressed: () {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => const OnboardingView()),
-                      );
+                      if (Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      } else {
+                        Navigator.of(context).pushReplacementNamed('/onboarding');
+                      }
                     },
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),

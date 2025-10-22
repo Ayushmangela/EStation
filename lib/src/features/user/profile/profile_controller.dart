@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase_sdk;
 
 // User model
@@ -80,6 +81,9 @@ class UserProfileController with ChangeNotifier {
 
     try {
       await supabase_sdk.Supabase.instance.client.auth.signOut();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('isLoggedIn');
+      await prefs.remove('userRole');
       _user = null;
     } catch (e) {
       print('Error during logout: $e');

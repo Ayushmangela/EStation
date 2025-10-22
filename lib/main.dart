@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Added import
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/supabase_config.dart';
 import 'src/app.dart';
+import 'src/features/user/home/user_home_view.dart';
+import 'src/features/admin/home/admin_home_view.dart';
+import 'src/presentation/pages/onboarding_view.dart';
+import 'src/presentation/pages/welcome_page.dart';
+import 'src/presentation/pages/splash_view.dart';
 
 // Define appRouteObserver as a top-level final variable
 final RouteObserver<ModalRoute<void>> appRouteObserver = RouteObserver<ModalRoute<void>>();
@@ -28,30 +33,39 @@ Future<void> main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
 
-  // DEBUG: Print Supabase config values
-  print('DEBUG main.dart: Supabase URL from config: ${SupabaseConfig.supabaseUrl}');
-  print('DEBUG main.dart: Supabase Anon Key (first 10 chars): ${SupabaseConfig.supabaseAnonKey.substring(0, 10)}');
-
   // Initialize Supabase
   try {
     await Supabase.initialize(
       url: SupabaseConfig.supabaseUrl,
       anonKey: SupabaseConfig.supabaseAnonKey,
     );
-    print('DEBUG main.dart: Supabase initialized successfully.');
   } catch (e) {
     print('DEBUG main.dart: Supabase initialization FAILED: ${e.toString()}');
     return;
   }
 
-  // Check if onboarding is complete
-  final SharedPreferences prefs = await SharedPreferences.getInstance();
-  final bool onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
-  final String initialRoute = onboardingComplete ? '/welcome' : '/onboarding';
-  print('DEBUG main.dart: Initial route determined: $initialRoute');
+  final prefs = await SharedPreferences.getInstance();
+  final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final String? userRole = prefs.getString('userRole');
+
+  Widget initialScreen;
+  if (isLoggedIn && userRole != null) {
+    if (userRole == 'admin') {
+      initialScreen = const SplashView(nextScreen: AdminHomeView());
+    } else {
+      initialScreen = const SplashView(nextScreen: UserHomeView());
+    }
+  } else {
+    final bool onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+    if (onboardingComplete) {
+      initialScreen = const EnzivoWelcomeScreen();
+    } else {
+      initialScreen = const OnboardingView();
+    }
+  }
 
   // 🚀 Launch with determined initial route
-  runApp(MyApp(initialRoute: initialRoute));
+  runApp(MyApp(initialScreen: initialScreen));
 }
 
 // Supabase client instance

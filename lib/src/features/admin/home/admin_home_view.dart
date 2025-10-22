@@ -1,76 +1,85 @@
 import 'package:flutter/material.dart';
-import 'package:circle_nav_bar/circle_nav_bar.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../main.dart'; // Adjusted path for supabase client
 
-// Import the views for the tabs
-import '../../user/map/map_view.dart';
-import '../station_management/manage_stations_view.dart';
-
-class AdminHomeView extends StatefulWidget {
+class AdminHomeView extends StatelessWidget {
   const AdminHomeView({super.key});
 
-  @override
-  State<AdminHomeView> createState() => _AdminHomeViewState();
-}
+  Future<void> _signOut(BuildContext context) async {
+    try {
+      await supabase.auth.signOut();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('isLoggedIn');
+      await prefs.remove('userRole');
+      if (context.mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/welcome',
+              (route) => false,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sign out failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
-class _AdminHomeViewState extends State<AdminHomeView> {
-  int _selectedIndex = 0;
-
-  final List<Widget> _pages = [
-    const UserMapView(isAdmin: true), // Pass isAdmin: true
-    const ManageStationsView(),
-  ];
+  Future<bool> _onWillPop(BuildContext context) async {
+    return (await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exit App?'),
+            content: const Text('Are you sure you want to exit the app?'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => SystemNavigator.pop(),
+                child: const Text('Yes'),
+              ),
+            ],
+          ),
+        )) ??
+        false;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true, // Makes the nav bar float
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: CircleNavBar(
-        activeIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        // Define the tabs
-        activeIcons: const [
-          Icon(Icons.map_outlined, color: Colors.white),
-          Icon(Icons.edit_location_alt_outlined, color: Colors.white),
-        ],
-        inactiveIcons: const [
-          Icon(Icons.map_outlined, color: Colors.white),
-          Icon(Icons.edit_location_alt_outlined, color: Colors.white),
-        ],
-        levels: const ["Map", "Manage"],
-        activeLevelsStyle: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
+    final user = supabase.auth.currentUser;
+    return WillPopScope(
+      onWillPop: () => _onWillPop(context),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Admin Home'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () => _signOut(context),
+            ),
+          ],
         ),
-        inactiveLevelsStyle: const TextStyle(
-          fontSize: 12,
-          color: Colors.white70,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Welcome Admin!', style: Theme.of(context).textTheme.headlineMedium),
+              if (user != null) ...[
+                const SizedBox(height: 16),
+                Text('User ID: ${user.id}'),
+                const SizedBox(height: 8),
+                Text('Email: ${user.email ?? "N/A"}'),
+              ],
+            ],
+          ),
         ),
-        // Style the nav bar
-        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 20),
-        circleWidth: 45,
-        height: 70,
-        color: Colors.black, // Navbar background color
-        circleColor: Colors.green, // Moving circle color
-        cornerRadius: const BorderRadius.only(
-          topLeft: Radius.circular(17),
-          topRight: Radius.circular(17),
-          bottomRight: Radius.circular(24),
-          bottomLeft: Radius.circular(24),
-        ),
-        elevation: 10,
-        tabCurve: Curves.decelerate,
-        iconCurve: Curves.linear,
-        tabDurationMillSec: 500,
-        iconDurationMillSec: 100,
       ),
     );
   }

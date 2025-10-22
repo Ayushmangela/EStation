@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -30,7 +31,6 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   String? _mapStyle;
   bool _isLoading = true;
   bool _showListView = false;
-  // _selectedStation now stores the Map {'station': Station, 'distance': double}
   Map<String, dynamic>? _selectedStationDataMap;
 
   late FavoritesService _favoritesService;
@@ -61,6 +61,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   @override
   void dispose() {
     appRouteObserver.unsubscribe(this);
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -71,7 +72,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
     super.didPopNext();
   }
 
-  // stationDataMap is {'station': Station, 'distance': double}
+  // Centralized callback for when a station is selected from ANY source.
   void onStationSelectedCallback(Map<String, dynamic> stationDataMap) {
     if (mounted) {
       final Station? station = stationDataMap['station'] as Station?;
@@ -82,11 +83,19 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
           !(_stationLoadingStatus[station.stationId] ?? false)) {
         _fetchFavoriteStatus(station.stationId);
       }
+      
+      // Set the state to show the map and the selected station card
       setState(() {
         _selectedStationDataMap = stationDataMap;
         _showListView = false;
       });
-      _animateToStation(stationDataMap);
+
+      // Defer animation until after the build phase is complete.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _animateToStation(stationDataMap);
+        }
+      });
     }
   }
 
@@ -95,16 +104,14 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
     if (!_showListView && _selectedStationDataMap != null) {
       final Station? station = _selectedStationDataMap!['station'] as Station?;
       if (station != null) {
-        debugPrint("UserMapView: Refreshing favorite for selected station ${station.stationId}");
         _fetchFavoriteStatus(station.stationId);
       }
     }
     if (_showListView) {
-      debugPrint("UserMapView: Clearing favorite cache for list view refresh.");
       _stationFavoriteStatus.clear();
       _stationLoadingStatus.clear();
     }
-    setState(() {}); // Refresh UI if necessary
+    setState(() {}); 
   }
 
   Future<void> _fetchFavoriteStatus(int stationId) async {
@@ -115,43 +122,26 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
       if (mounted) setState(() => _stationFavoriteStatus[stationId] = isFav);
     } catch (e) {
       debugPrint("Error fetching fav status for $stationId: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error checking favorite: ${e.toString()}")));
-      }
     } finally {
       if (mounted) setState(() => _stationLoadingStatus[stationId] = false);
     }
   }
 
   Future<void> _toggleFavorite(int stationId) async {
-    if (_userId == null || (_stationLoadingStatus[stationId] ?? false) || widget.isAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login or station ID missing/loading.')));
-      return;
-    }
+    if (_userId == null || (_stationLoadingStatus[stationId] ?? false) || widget.isAdmin) return;
     if (mounted) setState(() => _stationLoadingStatus[stationId] = true);
     bool currentStatus = _stationFavoriteStatus[stationId] ?? false;
-    String message;
     try {
       if (currentStatus) {
         await _favoritesService.removeFavorite(_userId!, stationId);
-        message = "Removed from favorites";
       } else {
         await _favoritesService.addFavorite(_userId!, stationId);
-        message = "Added to favorites";
       }
       if (mounted) {
         setState(() => _stationFavoriteStatus[stationId] = !currentStatus);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), duration: const Duration(seconds: 1)));
       }
     } catch (e) {
       debugPrint("Error toggling fav for $stationId: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error updating favorite: ${e.toString()}")));
-      }
     } finally {
       if (mounted) setState(() => _stationLoadingStatus[stationId] = false);
     }
@@ -165,50 +155,38 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
     if (mounted) setState(() {});
   }
 
-  // stationDataMap is {'station': Station, 'distance': double}
   Future<void> _animateToStation(Map<String, dynamic> stationDataMap) async {
     final Station? station = stationDataMap['station'] as Station?;
-    if (station == null) return;
+    if (station == null || _mapController == null) return;
     final LatLng stationPosition = LatLng(station.latitude, station.longitude);
     try {
-      if (_mapController != null) {
-        await _mapController!.animateCamera(CameraUpdate.newCameraPosition(
-            CameraPosition(target: stationPosition, zoom: 17)));
-      }
+      await _mapController!.animateCamera(CameraUpdate.newCameraPosition(
+          CameraPosition(target: stationPosition, zoom: 17)));
     } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error animating to station: ${e.toString()}')),
+        );
+      }
       debugPrint("Error animating to station: $e");
     }
   }
 
   Future<void> _loadMapStyle() async {
-    try {
-      _mapStyle = await rootBundle.loadString('assets/map_style.txt');
-    } catch (e) {
-      debugPrint("Error loading map style: $e");
-    }
+    _mapStyle = await rootBundle.loadString('assets/map_style.txt').catchError((_) => null);
   }
 
   Future<void> _getCurrentLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        debugPrint("Location services disabled.");
-        return;
-      }
+      if (!serviceEnabled) return;
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          debugPrint("Location permission denied.");
-          return;
-        }
+        if (permission == LocationPermission.denied) return;
       }
-      if (permission == LocationPermission.deniedForever) {
-        debugPrint("Location permission denied forever.");
-        return;
-      }
-      Position p = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+      if (permission == LocationPermission.deniedForever) return;
+      Position p = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       if (mounted) setState(() => _currentPosition = LatLng(p.latitude, p.longitude));
     } catch (e) {
       debugPrint("Error getting current location: $e");
@@ -222,22 +200,16 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
-                if (_showListView)
-                  Container(color: Colors.white, child: _buildListView())
-                else
-                  GoogleMap(
+                Visibility(
+                  visible: !_showListView,
+                  maintainState: true,
+                  child: GoogleMap(
                     initialCameraPosition: CameraPosition(
                         target: _currentPosition ?? const LatLng(19.0760, 72.8777),
                         zoom: _currentPosition != null ? 16 : 12),
                     onMapCreated: (GoogleMapController controller) async {
                       _mapController = controller;
-                      if (_mapStyle != null) {
-                        try {
-                          await controller.setMapStyle(_mapStyle);
-                        } catch (e) {
-                          debugPrint("Error setting map style: $e");
-                        }
-                      }
+                      if (_mapStyle != null) controller.setMapStyle(_mapStyle);
                     },
                     markers: _mapControllerHelper.markers,
                     myLocationEnabled: true,
@@ -248,6 +220,10 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                       if (mounted) setState(() => _selectedStationDataMap = null);
                     },
                   ),
+                ),
+                if (_showListView)
+                  Container(color: Colors.white, child: _buildListView()),
+                
                 IgnorePointer(
                   child: Container(
                     height: 160.0,
@@ -270,39 +246,23 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                     left: 0,
                     right: 0,
                     child: Builder(builder: (cardContext) {
-                      final capturedStationDataMap = _selectedStationDataMap;
-                      if (capturedStationDataMap == null) return const SizedBox.shrink();
-
-                      final Station? station = capturedStationDataMap['station'] as Station?;
-                      final double? distanceKm = capturedStationDataMap['distance'] as double?;
-
+                      final station = _selectedStationDataMap!['station'] as Station?;
                       if (station == null) return const SizedBox.shrink();
-                      final int stationId = station.stationId;
-
-                      if (_userId != null &&
-                          !widget.isAdmin &&
-                          !_stationFavoriteStatus.containsKey(stationId) &&
-                          !(_stationLoadingStatus[stationId] ?? false)) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) _fetchFavoriteStatus(stationId);
-                        });
-                      }
                       return StationCard(
-                        stationId: stationId,
+                        stationId: station.stationId,
                         name: station.name,
                         address: station.address,
-                        distanceKm: distanceKm,
+                        distanceKm: _selectedStationDataMap!['distance'] as double?,
                         viewLabel: "View Detail",
-                        isFavorite: _stationFavoriteStatus[stationId] ?? false,
-                        isLoadingFavorite: _stationLoadingStatus[stationId] ?? false,
-                        onFavoriteToggle: () => _toggleFavorite(stationId),
+                        isFavorite: _stationFavoriteStatus[station.stationId] ?? false,
+                        isLoadingFavorite: _stationLoadingStatus[station.stationId] ?? false,
+                        onFavoriteToggle: () => _toggleFavorite(station.stationId),
                         onViewPressed: () {
-                          // The station object is already fully formed
                           Navigator.push(
                               context,
                               MaterialPageRoute(
                                   builder: (_) => StationView(
-                                    station: station, // Pass the Station object directly
+                                    station: station,
                                     isAdmin: widget.isAdmin,
                                   )));
                         },
@@ -310,7 +270,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                           Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) => BookingView(stationId: stationId)));
+                                  builder: (_) => BookingView(stationId: station.stationId)));
                         },
                         isAdmin: widget.isAdmin,
                       );
@@ -332,10 +292,9 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
   }
 
   Widget _buildListView() {
-    // _mapControllerHelper.stations now returns List<Map<String, dynamic>>
     final stationsDataList = _mapControllerHelper.stations;
     if (stationsDataList.isEmpty) {
-      return const Center(child: Text("Loading stations or no stations available..."));
+      return const Center(child: Text("No stations available..."));
     }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 120, 16, 100),
@@ -343,35 +302,21 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
       itemBuilder: (context, index) {
         final stationDataMap = stationsDataList[index];
         final Station? station = stationDataMap['station'] as Station?;
-        final double? distanceKm = stationDataMap['distance'] as double?;
+        if (station == null) return const SizedBox.shrink();
 
-        if (station == null) return const SizedBox.shrink(); // Should not happen if data is correct
-        final int stationId = station.stationId;
-
-        if (_userId != null &&
-            !widget.isAdmin &&
-            !_stationFavoriteStatus.containsKey(stationId) &&
-            !(_stationLoadingStatus[stationId] ?? false)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _fetchFavoriteStatus(stationId);
-          });
-        }
         return StationCard(
-          stationId: stationId,
+          stationId: station.stationId,
           name: station.name,
           address: station.address,
-          distanceKm: distanceKm,
+          distanceKm: stationDataMap['distance'] as double?,
           viewLabel: "View Station",
-          isFavorite: _stationFavoriteStatus[stationId] ?? false,
-          isLoadingFavorite: _stationLoadingStatus[stationId] ?? false,
-          onFavoriteToggle: () => _toggleFavorite(stationId),
-          onViewPressed: () {
-            // Pass the whole map to the callback, which expects it
-            onStationSelectedCallback(stationDataMap);
-          },
+          isFavorite: _stationFavoriteStatus[station.stationId] ?? false,
+          isLoadingFavorite: _stationLoadingStatus[station.stationId] ?? false,
+          onFavoriteToggle: () => _toggleFavorite(station.stationId),
+          onViewPressed: () => onStationSelectedCallback(stationDataMap),
           onBookPressed: () {
             Navigator.push(
-                context, MaterialPageRoute(builder: (_) => BookingView(stationId: stationId)));
+                context, MaterialPageRoute(builder: (_) => BookingView(stationId: station.stationId)));
           },
           isAdmin: widget.isAdmin,
         );
@@ -384,27 +329,17 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          // Autocomplete now works with List<Map<String, dynamic>>
           child: Autocomplete<Map<String, dynamic>>(
-            displayStringForOption: (stationDataMap) {
-              final Station? station = stationDataMap['station'] as Station?;
-              return station?.name ?? 'Unknown Station';
-            },
+            displayStringForOption: (stationDataMap) => (stationDataMap['station'] as Station?)?.name ?? '',
             optionsBuilder: (TextEditingValue textEditingValue) {
-              if (textEditingValue.text.isEmpty) {
-                return const Iterable<Map<String, dynamic>>.empty();
-              }
-              // _mapControllerHelper.stations is List<Map<String, dynamic>>
-              return _mapControllerHelper.stations.where((stationDataMap) {
-                final Station? station = stationDataMap['station'] as Station?;
-                if (station == null) return false;
-                final String name = station.name.toLowerCase();
-                final String address = station.address.toLowerCase();
-                final String query = textEditingValue.text.toLowerCase();
-                return name.contains(query) || address.contains(query);
+              if (textEditingValue.text.isEmpty) return const Iterable.empty();
+              final query = textEditingValue.text.toLowerCase();
+              return _mapControllerHelper.stations.where((s) {
+                final station = s['station'] as Station?;
+                return station?.name.toLowerCase().contains(query) ?? false;
               });
             },
-            onSelected: (selection) { // selection is Map<String, dynamic>
+            onSelected: (selection) {
               FocusScope.of(context).unfocus();
               onStationSelectedCallback(selection);
             },
@@ -412,50 +347,27 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
               return Material(
                 elevation: 4.0,
                 borderRadius: BorderRadius.circular(30.0),
-                shadowColor: Colors.black.withOpacity(0.2),
                 child: TextField(
                   controller: textEditingController,
                   focusNode: focusNode,
-                  style: const TextStyle(color: Colors.black87),
                   decoration: InputDecoration(
                     contentPadding: const EdgeInsets.symmetric(vertical: 14.0),
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
                     suffixIcon: textEditingController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, color: Colors.grey),
-                            onPressed: () => textEditingController.clear(),
-                          )
+                        ? IconButton(icon: const Icon(Icons.clear), onPressed: () => textEditingController.clear())
                         : null,
-                    hintText: "Search by name or address...",
-                    hintStyle: const TextStyle(color: Colors.grey),
+                    hintText: "Search stations...",
                     filled: true,
                     fillColor: Colors.white,
-                    enabledBorder: OutlineInputBorder(
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30.0),
-                      borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30.0),
-                      borderSide: BorderSide(color: Colors.green, width: 1.5),
+                      borderSide: BorderSide.none,
                     ),
                   ),
                 ),
               );
             },
             optionsViewBuilder: (context, onSelected, options) {
-              if (options.isEmpty) {
-                return Align(
-                  alignment: Alignment.topLeft,
-                  child: Material(
-                    elevation: 4.0,
-                    borderRadius: BorderRadius.circular(12),
-                    child: const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('No stations found.'),
-                    ),
-                  ),
-                );
-              }
               return Align(
                 alignment: Alignment.topLeft,
                 child: Material(
@@ -463,31 +375,16 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                   borderRadius: BorderRadius.circular(12),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxHeight: 280),
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
                       itemCount: options.length,
-                      separatorBuilder: (_, __) =>
-                          const Divider(height: 1, indent: 72, endIndent: 16),
                       itemBuilder: (BuildContext context, int index) {
                         final stationDataMap = options.elementAt(index);
-                        final Station? station = stationDataMap['station'] as Station?;
-                        final double? distance = stationDataMap['distance'] as double?;
+                        final station = stationDataMap['station'] as Station?;
                         if (station == null) return const SizedBox.shrink();
-
                         return ListTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            child: Icon(Icons.ev_station_rounded),
-                          ),
-                          title: Text(station.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text(station.address, maxLines: 1, overflow: TextOverflow.ellipsis),
-                          trailing: distance != null
-                              ? Text(
-                                  '${distance.toStringAsFixed(1)} km',
-                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                                )
-                              : null,
+                          leading: const Icon(Icons.ev_station),
+                          title: Text(station.name),
                           onTap: () => onSelected(stationDataMap),
                         );
                       },
@@ -496,31 +393,6 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                 ),
               );
             },
-          ),
-        ),
-        const SizedBox(width: 8),
-        Material(
-          elevation: 4.0,
-          borderRadius: BorderRadius.circular(30.0),
-          shadowColor: Colors.black.withOpacity(0.2),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(30.0),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Filter functionality not yet implemented.')),
-              );
-            },
-            child: Container(
-              height: 48,
-              width: 48,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30.0),
-                border: Border.all(color: Colors.grey.shade300, width: 1.0),
-              ),
-              child: const Icon(Icons.tune_rounded, color: Colors.green),
-            ),
           ),
         ),
       ],
@@ -533,33 +405,21 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
         style: ElevatedButton.styleFrom(
           backgroundColor: !_showListView ? Colors.green : Colors.white,
           foregroundColor: !_showListView ? Colors.white : Colors.black,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
         ),
-        onPressed: () {
-          if (mounted) setState(() => _showListView = false);
-        },
-        child: const Text("Map view"),
+        onPressed: () => setState(() => _showListView = false),
+        child: const Text("Map"),
       ),
       const SizedBox(width: 8),
       ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: _showListView ? Colors.green : Colors.white,
           foregroundColor: _showListView ? Colors.white : Colors.black,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
         ),
-        onPressed: () {
-          if (mounted) {
-            setState(() {
-              _showListView = true;
-              _selectedStationDataMap = null;
-            });
-          }
-        },
-        child: const Text("List view"),
+        onPressed: () => setState(() {
+          _showListView = true;
+          _selectedStationDataMap = null;
+        }),
+        child: const Text("List"),
       ),
     ]);
   }
