@@ -59,7 +59,9 @@ class Station {
 enum AdminView { manage, add, edit }
 
 class ManageStationsView extends StatefulWidget {
-  const ManageStationsView({super.key});
+  final Station? stationToEdit;
+  final bool isOpenedFromDetailPage;
+  const ManageStationsView({super.key, this.stationToEdit, this.isOpenedFromDetailPage = false});
 
   @override
   State<ManageStationsView> createState() => _ManageStationsViewState();
@@ -81,6 +83,11 @@ class _ManageStationsViewState extends State<ManageStationsView> {
     _stationsFuture = _fetchStations();
     _searchController = TextEditingController();
     _searchController.addListener(_onSearchChanged);
+
+    if (widget.stationToEdit != null) {
+      _currentView = AdminView.edit;
+      _editingStation = widget.stationToEdit;
+    }
   }
 
   @override
@@ -97,32 +104,26 @@ class _ManageStationsViewState extends State<ManageStationsView> {
   }
 
   Future<List<Station>> _fetchStations() async {
-    // 1. Fetch all stations
-    final stationsResponse = await Supabase.instance.client
+    final response = await Supabase.instance.client
         .from('charging_stations')
-        .select()
+        .select('*, station_charger_capacity(vehicle_type, capacity_value)')
         .order('created_at', ascending: false);
 
     final List<Station> stations = [];
-    for (final stationMap in (stationsResponse as List)) {
-      final stationId = stationMap['station_id'] as int;
-
-      // 2. Fetch capacities for this station
+    for (final stationMap in (response as List)) {
       String? carCapacity;
       String? bikeCapacity;
 
-      final capacitiesResponse = await Supabase.instance.client
-          .from('station_charger_capacity')
-          .select('vehicle_type, capacity_value')
-          .eq('station_id', stationId);
-
-      for (final capMap in (capacitiesResponse as List)) {
-        final type = capMap['vehicle_type'] as String?;
-        final value = capMap['capacity_value'] as String?;
-        if (type == 'car') {
-          carCapacity = value;
-        } else if (type == 'bike') {
-          bikeCapacity = value;
+      if (stationMap['station_charger_capacity'] != null) {
+        final capacities = stationMap['station_charger_capacity'] as List;
+        for (final capMap in capacities) {
+          final type = capMap['vehicle_type'] as String?;
+          final value = capMap['capacity_value'] as String?;
+          if (type == 'car') {
+            carCapacity = value;
+          } else if (type == 'bike') {
+            bikeCapacity = value;
+          }
         }
       }
       stations.add(Station.fromMap(stationMap, carCapacity: carCapacity, bikeCapacity: bikeCapacity));
@@ -170,19 +171,47 @@ class _ManageStationsViewState extends State<ManageStationsView> {
       await _adminStationService.updateStation(
         stationId: stationId, name: name, address: address, latitude: latitude, longitude: longitude,
         hasBikeCharger: hasBikeCharger, hasCarCharger: hasCarCharger, status: status,
-        carChargerCapacity: carChargerCapacity, // Pass capacity
-        bikeChargerCapacity: bikeChargerCapacity, // Pass capacity
+        carChargerCapacity: carChargerCapacity,
+        bikeChargerCapacity: bikeChargerCapacity,
       );
       _showFeedback('$name has been updated.', false);
       _refreshStations();
-      setState(() {
-        _currentView = AdminView.manage;
-        _editingStation = null;
-      });
+
+      if (widget.isOpenedFromDetailPage) {
+        // Refetch the single updated station to get all the latest data
+        final updatedStationData = await Supabase.instance.client
+            .from('charging_stations')
+            .select('*, station_charger_capacity(vehicle_type, capacity_value)')
+            .eq('station_id', stationId)
+            .single();
+        
+        String? carCap;
+        String? bikeCap;
+        if (updatedStationData['station_charger_capacity'] != null) {
+            final capacities = updatedStationData['station_charger_capacity'] as List;
+            for (final capMap in capacities) {
+                final type = capMap['vehicle_type'] as String?;
+                final value = capMap['capacity_value'] as String?;
+                if (type == 'car') {
+                    carCap = value;
+                } else if (type == 'bike') {
+                    bikeCap = value;
+                }
+            }
+        }
+        final updatedStation = Station.fromMap(updatedStationData, carCapacity: carCap, bikeCapacity: bikeCap);
+        Navigator.of(context).pop(updatedStation); // Pop with result
+      } else {
+        setState(() {
+          _currentView = AdminView.manage;
+          _editingStation = null;
+        });
+      }
     } catch (e) {
       _showFeedback('Error updating station: ${e.toString().split('.').first}', true);
     }
   }
+
 
   void _promptDeleteStation(int stationId, String stationName) {
     showDialog(
@@ -195,7 +224,7 @@ class _ManageStationsViewState extends State<ManageStationsView> {
           actions: <Widget>[
             TextButton(
               child: Text('Cancel', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
@@ -214,17 +243,22 @@ class _ManageStationsViewState extends State<ManageStationsView> {
   void _deleteStation(int stationId, String stationName) async {
     try {
       await _adminStationService.deleteStation(stationId: stationId);
-      // Note: AdminStationService.deleteStation now handles deleting from station_charger_capacity
       _showFeedback('$stationName has been deleted.', false);
       _refreshStations();
-      setState(() {
-        _currentView = AdminView.manage;
-        _editingStation = null;
-      });
+      if (widget.isOpenedFromDetailPage) {
+        int count = 0;
+        Navigator.of(context).popUntil((_) => count++ >= 2);
+      } else {
+        setState(() {
+          _currentView = AdminView.manage;
+          _editingStation = null;
+        });
+      }
     } catch (e) {
       _showFeedback('Error deleting station: ${e.toString().split('.').first}', true);
     }
   }
+
 
   Color _getStatusColor(BuildContext context, String status) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -267,11 +301,15 @@ class _ManageStationsViewState extends State<ManageStationsView> {
             ? IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
-            setState(() {
-              _currentView = AdminView.manage;
-              _editingStation = null;
-              _searchController.clear();
-            });
+             if (widget.isOpenedFromDetailPage) {
+                Navigator.of(context).pop();
+              } else {
+                setState(() {
+                  _currentView = AdminView.manage;
+                  _editingStation = null;
+                  _searchController.clear();
+                });
+              }
           },
         )
             : null,
@@ -328,10 +366,14 @@ class _ManageStationsViewState extends State<ManageStationsView> {
               _updateStation(_editingStation!.stationId, name, address, lat, long, hasBike, hasCar, status, carCap, bikeCap);
             },
             onCancel: () {
-              setState(() {
-                _currentView = AdminView.manage;
-                _editingStation = null;
-              });
+              if (widget.isOpenedFromDetailPage) {
+                Navigator.of(context).pop();
+              } else {
+                setState(() {
+                  _currentView = AdminView.manage;
+                  _editingStation = null;
+                });
+              }
             },
             onDelete: _promptDeleteStation,
           );

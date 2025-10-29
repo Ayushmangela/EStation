@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Your import paths
-import '../../features/admin/home/admin_home_view.dart'; // Corrected import path
+import '../../features/admin/dashboard/admin_home_view.dart';
 import '../../features/user/authentication/auth_controller.dart';
 import '../../features/user/authentication/auth_service.dart';
 import '../../features/user/home/user_home_view.dart';
@@ -312,6 +313,27 @@ class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
       }
     }
   }
+  
+  Future<bool> _onWillPop() async {
+    return (await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Exit App?'),
+        content: const Text('Are you sure you want to exit the app?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => SystemNavigator.pop(),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    )) ??
+        false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -320,58 +342,61 @@ class _AuthViewState extends State<AuthView> with WidgetsBindingObserver {
     final loginPanelHeight = _isSignup ? screenHeight * 0.99 : screenHeight * 0.70;
     final double formTopPadding = loginPanelHeight * 0.25;
 
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
-        children: [
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeInOutCubic,
-            bottom: _showLoginPanel ? 0 : -loginPanelHeight,
-            left: 0,
-            right: 0,
-            child: AnimatedContainer(
+    return WillPopScope(
+       onWillPop: _onWillPop,
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            AnimatedPositioned(
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeInOutCubic,
-              height: loginPanelHeight,
-              width: screenWidth,
-              child: GestureDetector(
-                onTap: () => FocusScope.of(context).unfocus(),
-                child: Stack(
-                  children: [
-                    ClipPath(
-                      clipper: RPSClipper(),
-                      child: Container(color: Colors.white),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.only(
-                          top: formTopPadding,
-                          left: 30,
-                          right: 30,
-                          bottom: 20),
-                      child: SingleChildScrollView(
-                        controller: _scrollController,
-                        physics: const NeverScrollableScrollPhysics(),
-                        child: Form(
-                          key: _formKey,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 400),
-                            transitionBuilder: (child, animation) {
-                              return FadeTransition(
-                                  opacity: animation, child: child);
-                            },
-                            child:
-                            _isSignup ? _buildSignupForm() : _buildLoginForm(),
+              bottom: _showLoginPanel ? 0 : -loginPanelHeight,
+              left: 0,
+              right: 0,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeInOutCubic,
+                height: loginPanelHeight,
+                width: screenWidth,
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: Stack(
+                    children: [
+                      ClipPath(
+                        clipper: RPSClipper(),
+                        child: Container(color: Colors.white),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.only(
+                            top: formTopPadding,
+                            left: 30,
+                            right: 30,
+                            bottom: 20),
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          physics: const NeverScrollableScrollPhysics(),
+                          child: Form(
+                            key: _formKey,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 400),
+                              transitionBuilder: (child, animation) {
+                                return FadeTransition(
+                                    opacity: animation, child: child);
+                              },
+                              child:
+                              _isSignup ? _buildSignupForm() : _buildLoginForm(),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

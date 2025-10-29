@@ -1,32 +1,80 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class StationCard extends StatelessWidget {
+import '../../admin/station_management/manage_stations_view.dart';
+
+class StationCard extends StatefulWidget {
   final int stationId;
   final String name;
   final String address;
-  final double? distanceKm; // Added distance
+  final double? distanceKm;
   final VoidCallback onViewPressed;
   final VoidCallback onBookPressed;
   final String viewLabel;
   final bool isFavorite;
   final VoidCallback onFavoriteToggle;
   final bool isLoadingFavorite;
-  final bool isAdmin; // Added isAdmin parameter
+  final bool isAdmin;
+  final Station? station; // Add this to accept the full station object
 
   const StationCard({
     super.key,
     required this.stationId,
     required this.name,
     required this.address,
-    this.distanceKm, // Added distance
+    this.distanceKm,
     required this.onViewPressed,
     required this.onBookPressed,
     this.viewLabel = "View Station",
     required this.isFavorite,
     required this.onFavoriteToggle,
     this.isLoadingFavorite = false,
-    this.isAdmin = false, // Default to false
+    this.isAdmin = false,
+    this.station, // Add this to the constructor
   });
+
+  @override
+  State<StationCard> createState() => _StationCardState();
+}
+
+class _StationCardState extends State<StationCard> {
+  late Future<List<Map<String, dynamic>>> _chargerCapacitiesFuture;
+  bool _hasNetworkError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _chargerCapacitiesFuture = _fetchChargerCapacities();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchChargerCapacities() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('station_charger_capacity')
+          .select('vehicle_type, capacity_value')
+          .eq('station_id', widget.stationId);
+      
+      if (mounted && _hasNetworkError) {
+        setState(() {
+          _hasNetworkError = false;
+        });
+      }
+      return (response as List).map((item) => item as Map<String, dynamic>).toList();
+    } catch (e) {
+      if (e.toString().contains('SocketException')) {
+        // Using addPostFrameCallback to safely update state after the build.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _hasNetworkError = true;
+            });
+          }
+        });
+      }
+      // Re-throw to be handled by the FutureBuilder.
+      throw e;
+    }
+  }
 
   Widget _buildChargerInfoBox({
     required IconData icon,
@@ -78,9 +126,7 @@ class StationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // Adjusted height to accommodate distance, might need further tweaking
-      // Consider removing fixed height if content varies significantly
-      height: 225, // Changed from 220 to 225
+      height: 225,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       decoration: BoxDecoration(
@@ -103,7 +149,7 @@ class StationCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  name,
+                  widget.name,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -111,8 +157,8 @@ class StationCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (!isAdmin) // Conditionally show favorite button
-                isLoadingFavorite
+              if (!widget.isAdmin)
+                widget.isLoadingFavorite
                     ? const SizedBox(
                         width: 28,
                         height: 28,
@@ -125,11 +171,11 @@ class StationCard extends StatelessWidget {
                         ))
                     : IconButton(
                         icon: Icon(
-                          isFavorite ? Icons.favorite : Icons.favorite_border,
-                          color: isFavorite ? Colors.red : Colors.grey,
+                          widget.isFavorite ? Icons.favorite : Icons.favorite_border,
+                          color: widget.isFavorite ? Colors.red : Colors.grey,
                         ),
                         iconSize: 28,
-                        onPressed: onFavoriteToggle,
+                        onPressed: widget.onFavoriteToggle,
                       ),
             ],
           ),
@@ -141,7 +187,7 @@ class StationCard extends StatelessWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  address,
+                  widget.address,
                   style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -149,11 +195,11 @@ class StationCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4), // Added some space before distance
+          const SizedBox(height: 4),
           // Distance Text
           Text(
-            distanceKm != null
-                ? "${distanceKm!.toStringAsFixed(2)} km away"
+            widget.distanceKm != null
+                ? "${widget.distanceKm!.toStringAsFixed(2)} km away"
                 : "Distance unknown",
             style: TextStyle(fontSize: 13, color: Colors.grey[700]),
             maxLines: 1,
@@ -161,20 +207,59 @@ class StationCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // Charger Info Row
-          Row(
-            children: [
-              _buildChargerInfoBox(
-                icon: Icons.directions_car,
-                title: "Car Charger",
-                capacityInfo: "Capacity: 60KW",
-              ),
-              const SizedBox(width: 10),
-              _buildChargerInfoBox(
-                icon: Icons.two_wheeler,
-                title: "Bike Charger",
-                capacityInfo: "Capacity: 15KW",
-              ),
-            ],
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: _chargerCapacitiesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                if (snapshot.error.toString().contains('SocketException')) {
+                  return const Center(
+                    child: Text('No internet connection'),
+                  );
+                }
+                return const Center(
+                  child: Text('Error loading charger info'),
+                );
+              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Text('No charger info available');
+              } else {
+                final capacities = snapshot.data!;
+                List<Widget> chargerInfoWidgets = [];
+                for (int i = 0; i < capacities.length; i++) {
+                    final capacity = capacities[i];
+                    final vehicleType = capacity['vehicle_type'];
+                    final capacityValue = capacity['capacity_value'];
+                    IconData icon;
+                    String title;
+
+                    if (vehicleType == 'car') {
+                      icon = Icons.directions_car;
+                      title = "Car Charger";
+                    } else if (vehicleType == 'bike') {
+                      icon = Icons.two_wheeler;
+                      title = "Bike Charger";
+                    } else {
+                      // Default case if needed
+                      icon = Icons.power;
+                      title = "Charger";
+                    }
+
+                    chargerInfoWidgets.add(_buildChargerInfoBox(
+                      icon: icon,
+                      title: title,
+                      capacityInfo: "Capacity: $capacityValue",
+                    ));
+
+                    if (i < capacities.length - 1) {
+                      chargerInfoWidgets.add(const SizedBox(width: 10));
+                    }
+                }
+                return Row(
+                  children: chargerInfoWidgets,
+                );
+              }
+            },
           ),
           const Spacer(),
           // Buttons Row
@@ -194,11 +279,11 @@ class StationCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  onPressed: onViewPressed,
-                  child: Text(viewLabel),
+                  onPressed: _hasNetworkError ? null : widget.onViewPressed,
+                  child: Text(widget.viewLabel),
                 ),
               ),
-              if (!isAdmin) ...[ // Conditionally show booking button
+              if (!widget.isAdmin) ...[
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
@@ -214,9 +299,9 @@ class StationCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    onPressed: onBookPressed,
+                    onPressed: _hasNetworkError ? null : widget.onBookPressed,
                     child: const Text("Book Charger"),
-                  ),
+                  ), 
                 ),
               ],
             ],

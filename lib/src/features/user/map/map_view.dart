@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -67,10 +66,21 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
 
   @override
   void didPopNext() {
-    debugPrint("UserMapView: didPopNext - refreshing favorite statuses.");
-    _refreshVisibleFavoriteStatuses();
+    debugPrint("UserMapView: didPopNext - refreshing all views.");
+    _refreshStationsAndFavorites();
     super.didPopNext();
   }
+  
+  void _refreshStationsAndFavorites() {
+    _mapControllerHelper.loadStations(_currentPosition, onStationSelectedCallback).then((_) {
+      if (mounted) {
+        setState(() {
+          _refreshVisibleFavoriteStatuses();
+        });
+      }
+    });
+  }
+
 
   // Centralized callback for when a station is selected from ANY source.
   void onStationSelectedCallback(Map<String, dynamic> stationDataMap) {
@@ -223,59 +233,8 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                 ),
                 if (_showListView)
                   Container(color: Colors.white, child: _buildListView()),
-                
-                IgnorePointer(
-                  child: Container(
-                    height: 160.0,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Theme.of(context).scaffoldBackgroundColor,
-                          Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                        ],
-                        stops: const [0.2, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-                if (!_showListView && _selectedStationDataMap != null)
-                  Positioned(
-                    bottom: 100,
-                    left: 0,
-                    right: 0,
-                    child: Builder(builder: (cardContext) {
-                      final station = _selectedStationDataMap!['station'] as Station?;
-                      if (station == null) return const SizedBox.shrink();
-                      return StationCard(
-                        stationId: station.stationId,
-                        name: station.name,
-                        address: station.address,
-                        distanceKm: _selectedStationDataMap!['distance'] as double?,
-                        viewLabel: "View Detail",
-                        isFavorite: _stationFavoriteStatus[station.stationId] ?? false,
-                        isLoadingFavorite: _stationLoadingStatus[station.stationId] ?? false,
-                        onFavoriteToggle: () => _toggleFavorite(station.stationId),
-                        onViewPressed: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => StationView(
-                                    station: station,
-                                    isAdmin: widget.isAdmin,
-                                  )));
-                        },
-                        onBookPressed: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => BookingView(stationId: station.stationId)));
-                        },
-                        isAdmin: widget.isAdmin,
-                      );
-                    }),
-                  ),
+
+                // Search and Toggle buttons, always visible
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
@@ -286,6 +245,62 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
                     ]),
                   ),
                 ),
+
+                // Non-admin specific UI (gradient and floating card)
+                if (!widget.isAdmin && !_showListView && _selectedStationDataMap != null) ...[
+                  IgnorePointer(
+                    child: Container(
+                      height: 160.0,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Theme.of(context).scaffoldBackgroundColor,
+                            Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                          ],
+                          stops: const [0.2, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                    Positioned(
+                      bottom: 100,
+                      left: 0,
+                      right: 0,
+                      child: Builder(builder: (cardContext) {
+                        final station = _selectedStationDataMap!['station'] as Station?;
+                        if (station == null) return const SizedBox.shrink();
+                        return StationCard(
+                          station: station,
+                          stationId: station.stationId,
+                          name: station.name,
+                          address: station.address,
+                          distanceKm: _selectedStationDataMap!['distance'] as double?,
+                          viewLabel: "View Detail",
+                          isFavorite: _stationFavoriteStatus[station.stationId] ?? false,
+                          isLoadingFavorite: _stationLoadingStatus[station.stationId] ?? false,
+                          onFavoriteToggle: () => _toggleFavorite(station.stationId),
+                          onViewPressed: () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => StationView(
+                                      station: station,
+                                      isAdmin: widget.isAdmin,
+                                    )));
+                          },
+                          onBookPressed: () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => BookingView(stationId: station.stationId)));
+                          },
+                          isAdmin: widget.isAdmin,
+                        );
+                      }),
+                    ),
+                ],
               ],
             ),
     );
@@ -305,6 +320,7 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
         if (station == null) return const SizedBox.shrink();
 
         return StationCard(
+          station: station, // Pass the full station object here
           stationId: station.stationId,
           name: station.name,
           address: station.address,
@@ -313,7 +329,13 @@ class _UserMapViewState extends State<UserMapView> with RouteAware {
           isFavorite: _stationFavoriteStatus[station.stationId] ?? false,
           isLoadingFavorite: _stationLoadingStatus[station.stationId] ?? false,
           onFavoriteToggle: () => _toggleFavorite(station.stationId),
-          onViewPressed: () => onStationSelectedCallback(stationDataMap),
+          onViewPressed: () {
+            if (widget.isAdmin) {
+               Navigator.push(context, MaterialPageRoute(builder: (_) => StationView(station: station, isAdmin: true))).then((_) => _refreshStationsAndFavorites());
+            } else {
+              onStationSelectedCallback(stationDataMap);
+            }
+          },
           onBookPressed: () {
             Navigator.push(
                 context, MaterialPageRoute(builder: (_) => BookingView(stationId: station.stationId)));

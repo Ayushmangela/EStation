@@ -25,15 +25,15 @@ class _StationViewState extends State<StationView> {
   bool _isLoadingFavorite = true; 
   late FavoritesService _favoritesService;
   String? _userId;
-  late int _stationId;
+  late Station _currentStation; // Use a mutable station object
 
   @override
   void initState() {
     super.initState();
+    _currentStation = widget.station;
     final supabaseClient = Supabase.instance.client;
     _favoritesService = FavoritesService(supabaseClient);
     _userId = supabaseClient.auth.currentUser?.id;
-    _stationId = widget.station.stationId;
 
     if (_userId != null && !widget.isAdmin) { 
       _checkInitialFavoriteStatus();
@@ -50,7 +50,7 @@ class _StationViewState extends State<StationView> {
       _isLoadingFavorite = true;
     });
     try {
-      final isFav = await _favoritesService.isFavorite(_userId!, _stationId);
+      final isFav = await _favoritesService.isFavorite(_userId!, _currentStation.stationId);
       if (mounted) {
         setState(() {
           _isFavorite = isFav;
@@ -81,14 +81,14 @@ class _StationViewState extends State<StationView> {
 
     try {
       if (_isFavorite) {
-        await _favoritesService.removeFavorite(_userId!, _stationId);
+        await _favoritesService.removeFavorite(_userId!, _currentStation.stationId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Removed from favorites"), duration: Duration(seconds: 1)),
           );
         }
       } else {
-        await _favoritesService.addFavorite(_userId!, _stationId);
+        await _favoritesService.addFavorite(_userId!, _currentStation.stationId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Added to favorites"), duration: Duration(seconds: 1)),
@@ -115,13 +115,30 @@ class _StationViewState extends State<StationView> {
       }
     }
   }
+  
+  void _navigateToEditPage() async {
+    final updatedStation = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ManageStationsView(
+          stationToEdit: _currentStation,
+          isOpenedFromDetailPage: true,
+        ),
+      ),
+    );
+
+    if (updatedStation != null && updatedStation is Station) {
+      setState(() {
+        _currentStation = updatedStation;
+      });
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
     const String localImageAssetPath = "assets/ev-charging.jpg";
-    // Removed: const String stationStatus = "Open 24 hour";
     const String distance = "4.5 km"; // This should ideally come from the station data or be calculated
-    // Removed: const String cost = "\$15.00 / hour";
     const String parking = "Free"; // This could also be a field in station data
     const List<String> amenities = ["Wifi", "Gym", "Park", "Parking"]; // This could also be from station data
     
@@ -138,18 +155,18 @@ class _StationViewState extends State<StationView> {
     };
 
     // Determine status text and color
-    String displayStatus = widget.station.status.isNotEmpty 
-        ? widget.station.status[0].toUpperCase() + widget.station.status.substring(1)
+    String displayStatus = _currentStation.status.isNotEmpty 
+        ? _currentStation.status[0].toUpperCase() + _currentStation.status.substring(1)
         : "Unknown";
-    Color statusColor = widget.station.status.toLowerCase() == 'available' 
+    Color statusColor = _currentStation.status.toLowerCase() == 'available' 
         ? Colors.green 
-        : (widget.station.status.toLowerCase() == 'offline' ? Colors.red : Colors.grey);
+        : (_currentStation.status.toLowerCase() == 'offline' ? Colors.red : Colors.grey);
 
-    bool isStationOffline = widget.station.status.toLowerCase() == 'offline';
+    bool isStationOffline = _currentStation.status.toLowerCase() == 'offline';
 
     // Determine if charger cards should be shown
-    final bool showCarCharger = widget.station.carChargerCapacity != null && widget.station.carChargerCapacity!.isNotEmpty;
-    final bool showBikeCharger = widget.station.bikeChargerCapacity != null && widget.station.bikeChargerCapacity!.isNotEmpty;
+    final bool showCarCharger = _currentStation.carChargerCapacity != null && _currentStation.carChargerCapacity!.isNotEmpty;
+    final bool showBikeCharger = _currentStation.bikeChargerCapacity != null && _currentStation.bikeChargerCapacity!.isNotEmpty;
 
     return Scaffold(
       body: CustomScrollView(
@@ -236,7 +253,7 @@ class _StationViewState extends State<StationView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.station.name,
+                        _currentStation.name,
                         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
@@ -256,9 +273,8 @@ class _StationViewState extends State<StationView> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // Removed: _buildInfoRow("Cost :", cost),
                   _buildInfoRow("Parking :", parking), // Kept parking for now
-                  _buildInfoRow("Address :", widget.station.address, isExpanded: true),
+                  _buildInfoRow("Address :", _currentStation.address, isExpanded: true),
                   const SizedBox(height: 24),
                   const Text(
                     "Amenities :",
@@ -287,11 +303,11 @@ class _StationViewState extends State<StationView> {
                   ),
                   const SizedBox(height: 12),
                   if (showCarCharger)
-                    _buildChargerCard(carChargerName, widget.station.carChargerCapacity!, carChargerIcon),
+                    _buildChargerCard(carChargerName, _currentStation.carChargerCapacity!, carChargerIcon),
                   if (showCarCharger && showBikeCharger) // Add spacing only if both are shown
                     const SizedBox(height: 12),
                   if (showBikeCharger)
-                    _buildChargerCard(bikeChargerName, widget.station.bikeChargerCapacity!, bikeChargerIcon),
+                    _buildChargerCard(bikeChargerName, _currentStation.bikeChargerCapacity!, bikeChargerIcon),
                   const SizedBox(height: 30),
                 ],
               ),
@@ -301,60 +317,69 @@ class _StationViewState extends State<StationView> {
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
+        child: widget.isAdmin
+            ? ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[200],
-                  foregroundColor: Colors.black87,
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
                 ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DirectionView(
-                        stationPosition: LatLng(widget.station.latitude, widget.station.longitude),
-                        stationName: widget.station.name,
+                onPressed: _navigateToEditPage,
+                child: const Text("Edit Station", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[200],
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
                       ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DirectionView(
+                              stationPosition: LatLng(_currentStation.latitude, _currentStation.longitude),
+                              stationName: _currentStation.name,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text("Get direction", style: TextStyle(fontSize: 16)),
                     ),
-                  );
-                },
-                child: const Text("Get direction", style: TextStyle(fontSize: 16)),
-              ),
-            ),
-            if (!widget.isAdmin) ...[ 
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isStationOffline ? Colors.grey.shade400 : Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  onPressed: () {
-                    if (isStationOffline) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Station is currently offline and cannot be booked.')),
-                      );
-                    } else {
-                      debugPrint("Booking a slot at ${widget.station.name}");
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => BookingView(stationId: widget.station.stationId)),
-                      );
-                    }
-                  },
-                  child: const Text("Book a slot", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isStationOffline ? Colors.grey.shade400 : Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () {
+                        if (isStationOffline) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Station is currently offline and cannot be booked.')),
+                          );
+                        } else {
+                          debugPrint("Booking a slot at ${_currentStation.name}");
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => BookingView(stationId: _currentStation.stationId)),
+                          );
+                        }
+                      },
+                      child: const Text("Book a slot", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ],
-        ),
       ),
     );
   }

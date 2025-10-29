@@ -6,7 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/supabase_config.dart';
 import 'src/app.dart';
 import 'src/features/user/home/user_home_view.dart';
-import 'src/features/admin/home/admin_home_view.dart';
+import 'src/features/admin/dashboard/admin_home_view.dart';
 import 'src/presentation/pages/onboarding_view.dart';
 import 'src/presentation/pages/welcome_page.dart';
 import 'src/presentation/pages/splash_view.dart';
@@ -16,10 +16,8 @@ final RouteObserver<ModalRoute<void>> appRouteObserver = RouteObserver<ModalRout
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   // Load environment variables
   await dotenv.load(fileName: ".env");
-
   // Hide system navigation bar on app start, but allow swipe up to reveal
   await SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.immersiveSticky,
